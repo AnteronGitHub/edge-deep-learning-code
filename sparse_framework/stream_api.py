@@ -5,17 +5,20 @@ import uuid
 import logging
 
 from .protocols import SparseProtocol
+from .runtime import SparseRuntime
 from .runtime.operator import StreamOperator
 
 __all__ = ["SparseStream"]
 
 class SparseStream:
-    def __init__(self, stream_id : str = None, stream_alias : str = None):
+    def __init__(self, stream_id : str = None, stream_alias : str = None, runtime = None):
         self.logger = logging.getLogger("sparse")
 
         self.stream_id = str(uuid.uuid4()) if stream_id is None else stream_id
         self.stream_alias = stream_alias
+        self.runtime = runtime
 
+        self.sequence_no = 0
         self.protocols = set()
         self.operators = set()
         self.streams = set()
@@ -46,11 +49,19 @@ class SparseStream:
     def emit(self, data_tuple):
         """Sends a new data tuple to the connected operators and subscribed connections.
         """
+        if self.stream_alias is not None:
+            self.logger.debug("Stream %s emitting data (seq. no. %s) to %s operators and %s connections",
+                             self,
+                             self.sequence_no,
+                             len(self.operators),
+                             len(self.protocols))
         for operator, output_stream in self.operators:
-            operator.buffer_input(data_tuple, output_stream.emit)
+            self.runtime.call_operator(operator, self, data_tuple, output_stream)
 
         for protocol in self.protocols:
-            protocol.send_data_tuple(self.stream_alias or self.stream_id, data_tuple)
+            protocol.send_data_tuple(self, data_tuple)
 
         for stream in self.streams:
             stream.emit(data_tuple)
+
+        self.sequence_no += 1

@@ -13,8 +13,11 @@ class SinkProtocol(SparseProtocol):
 
     def connection_made(self, transport):
         super().connection_made(transport)
-        self.logger.info("Subscribing to stream '%s'...", self.stream_alias)
+        self.logger.debug("Subscribing to stream '%s'...", self.stream_alias)
         self.send_subscribe(self.stream_alias)
+
+    def subscribe_ok_received(self, stream_alias : str):
+        self.logger.info("Subscribed to stream '%s'", stream_alias)
 
     def connection_lost(self, transport):
         self.on_con_lost.set_result(True)

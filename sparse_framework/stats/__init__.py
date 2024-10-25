@@ -1,7 +1,7 @@
-from .qos_monitor_slice import SparseQoSMonitorSlice
+from .qos_monitor import QoSMonitor
 from .request_statistics import *
 
 __all__ = (
-        "SparseQoSMonitorSlice",
+        "QoSMonitor",
         *request_statistics.__all__
         )

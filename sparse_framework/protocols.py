@@ -46,8 +46,21 @@ class SparseTransportProtocol(asyncio.Protocol):
         self.data_buffer.write(payload)
 
         if self.data_buffer.getbuffer().nbytes >= self.data_size:
-            self.message_received(self.data_type.decode(), self.data_buffer.getvalue())
-            self.clear_buffer()
+            payload_type = self.data_type.decode()
+            self.data_buffer.seek(0)
+            payload_bytes = self.data_buffer.read(self.data_size)
+
+            if self.data_buffer.getbuffer().nbytes - self.data_size == 0:
+                self.clear_buffer()
+            else:
+                header = self.data_buffer.read(9)
+                [self.data_type, self.data_size] = struct.unpack("!sQ", header)
+
+                payload = self.data_buffer.read()
+                self.data_buffer = io.BytesIO()
+                self.data_buffer.write(payload)
+
+            self.message_received(payload_type, payload_bytes)
 
     def message_received(self, payload_type : str, data : bytes):
         if payload_type == "f":
@@ -113,8 +126,26 @@ class SparseProtocol(SparseTransportProtocol):
     def send_subscribe(self, stream_alias : str):
         self.send_payload({"op": "subscribe", "stream_alias": stream_alias})
 
-    def send_data_tuple(self, stream_selector : str, data_tuple):
-        self.send_payload({"op": "data_tuple", "stream_selector": stream_selector, "tuple": data_tuple })
+    def subscribe_received(self, stream_alias : str):
+        pass
+
+    def send_subscribe_ok(self, stream_alias : str):
+        self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "success"})
+
+    def subscribe_ok_received(self, stream_alias : str):
+        pass
+
+    def send_subscribe_error(self, stream_alias : str):
+        self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "error"})
+
+    def subscribe_error_received(self, stream_alias : str):
+        pass
+
+    def send_data_tuple(self, stream, data_tuple):
+        self.send_payload({"op": "data_tuple", "stream_selector": stream.__str__(), "tuple": data_tuple })
+
+    def data_tuple_received(self, stream_selector : str, data_tuple : str):
+        pass
 
     def send_init_module_transfer(self, module_name : str):
         self.send_payload({ "op": "init_module_transfer", "module_name": module_name })
@@ -164,11 +195,13 @@ class SparseProtocol(SparseTransportProtocol):
 
                 self.create_connector_stream_received(stream_id, stream_alias)
         elif obj["op"] == "subscribe":
+            stream_alias = obj["stream_alias"]
             if "status" in obj:
-                pass
+                if obj["status"] == "success":
+                    self.subscribe_ok_received(stream_alias)
+                else:
+                    self.subscribe_error_received(stream_alias)
             else:
-                stream_alias = obj["stream_alias"]
-
                 self.subscribe_received(stream_alias)
         elif obj["op"] == "init_module_transfer":
             if "status" in obj:
@@ -212,7 +245,7 @@ class ClusterProtocol(SparseProtocol):
         self.receiving_module_name = None
 
     def connection_lost(self, exc):
-        self.node.stream_router.remove_cluster_connection(self.transport)
+        self.node.cluster_orchestrator.remove_cluster_connection(self.transport)
         self.logger.debug("Connection %s disconnected.", self)
 
     def transfer_module(self, module : SparseModule):
@@ -248,7 +281,7 @@ class ClusterProtocol(SparseProtocol):
 
         self.logger.info("Received module '%s' from %s", self.receiving_module_name, self)
         module = self.node.module_repo.add_app_module(self.receiving_module_name, app_archive_path)
-        self.node.stream_router.distribute_module(self, module)
+        self.node.cluster_orchestrator.distribute_module(self, module)
         self.receiving_module_name = None
 
         self.send_transfer_file_ok()
@@ -267,19 +300,22 @@ class ClusterClientProtocol(ClusterProtocol):
         self.send_connect_downstream()
 
     def connect_downstream_ok_received(self):
-        self.node.stream_router.add_cluster_connection(self, direction="egress")
+        self.node.cluster_orchestrator.add_cluster_connection(self, direction="egress")
 
 class ClusterServerProtocol(ClusterProtocol):
     """Cluster client protocol creates an ingress connection to another cluster node.
     """
 
     def connect_downstream_received(self):
-        self.node.stream_router.add_cluster_connection(self, "ingress")
+        self.node.cluster_orchestrator.add_cluster_connection(self, "ingress")
         self.send_connect_downstream_ok()
 
     def create_connector_stream_received(self, stream_id : str = None, stream_alias : str = None):
         stream = self.node.stream_router.create_connector_stream(self, stream_id, stream_alias)
+        self.node.cluster_orchestrator.distribute_stream(self, stream)
+
         self.send_create_connector_stream_ok(stream.stream_id, stream.stream_alias)
 
     def subscribe_received(self, stream_alias : str):
         self.node.stream_router.subscribe(stream_alias, self)
+        self.send_subscribe_ok(stream_alias)

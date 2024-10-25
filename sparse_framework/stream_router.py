@@ -1,6 +1,5 @@
 import asyncio
 
-from .module_repo import SparseModule
 from .node import SparseSlice
 from .protocols import SparseProtocol
 from .runtime import SparseRuntime
@@ -13,19 +12,6 @@ class SparseDeployment:
         self.name = name
         self.dag = dag
 
-class ClusterConnection:
-    """Cluster connection enables offloading operators to another cluster node.
-    """
-    def __init__(self, protocol : SparseProtocol, direction : str):
-        self.protocol = protocol
-        self.direction = direction
-
-    def transfer_module(self, app : SparseModule):
-        self.protocol.transfer_module(app)
-
-    def create_deployment(self, app_dag : dict):
-        self.protocol.create_deployment(app_dag)
-
 class StreamRouter(SparseSlice):
     """Stream router then ensures that streams are routed according to application specifications. It receives
     applications to be deployed in the cluster, and decides the placement of sources, operators and sinks in the
@@ -36,36 +22,7 @@ class StreamRouter(SparseSlice):
 
         self.runtime = runtime
 
-        self.cluster_connections = set()
-
         self.streams = set()
-
-    def add_cluster_connection(self, protocol : SparseProtocol, direction : str):
-        """Adds a connection to another cluster node for stream routing and operator migration.
-        """
-        cluster_connection = ClusterConnection(protocol, direction)
-        self.cluster_connections.add(cluster_connection)
-        self.logger.info("Added %s connection with node %s", direction, protocol)
-
-        for connector_stream in self.streams:
-            cluster_connection.protocol.send_create_connector_stream(connector_stream.stream_id,
-                                                                     connector_stream.stream_alias)
-            connector_stream.subscribe(cluster_connection.protocol)
-
-    def remove_cluster_connection(self, protocol):
-        """Removes a cluster connection.
-        """
-        for connection in self.cluster_connections:
-            if connection.protocol == protocol:
-                self.cluster_connections.discard(connection)
-                self.logger.info("Removed %s connection with node %s", connection.direction, protocol)
-                return
-
-    def distribute_module(self, source : SparseProtocol, module : SparseModule):
-        for connection in self.cluster_connections:
-            if connection.protocol != source:
-                self.logger.info("Distributing module %s to node %s", module.name, connection.protocol)
-                connection.transfer_module(module)
 
     def create_connector_stream(self, \
                                 source : SparseProtocol, \
@@ -79,13 +36,6 @@ class StreamRouter(SparseSlice):
             connector_stream.protocols.remove(source)
 
         self.logger.info("Stream %s listening to source %s", connector_stream.stream_alias, source)
-
-        # Broadcast to other cluster connections
-        for connection in self.cluster_connections:
-            if connection.protocol != source:
-                self.logger.info("Broadcasting stream %s to peer %s", connector_stream, connection.protocol)
-                connection.protocol.send_create_connector_stream(connector_stream.stream_id, connector_stream.stream_alias)
-                connector_stream.subscribe(connection.protocol)
 
         return connector_stream
 
@@ -125,8 +75,8 @@ class StreamRouter(SparseSlice):
                 if stream.matches_selector(stream_selector):
                     return stream
 
-        stream = SparseStream(stream_id=stream_id, stream_alias=stream_alias)
+        stream = SparseStream(stream_id=stream_id, stream_alias=stream_alias, runtime=self.runtime)
         self.streams.add(stream)
-        self.logger.info("Created stream %s", stream)
+        self.logger.debug("Created stream %s", stream)
 
         return stream

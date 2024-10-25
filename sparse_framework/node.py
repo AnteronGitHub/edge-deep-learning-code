@@ -46,7 +46,7 @@ from .cluster_orchestrator import ClusterOrchestrator
 from .module_repo import ModuleRepository
 from .runtime import SparseRuntime
 from .stream_router import StreamRouter
-from .stats import SparseQoSMonitorSlice
+from .stats import QoSMonitor
 
 class SparseNode:
     """Common base class for each Node in a Sparse cluster.
@@ -67,18 +67,19 @@ class SparseNode:
         self.init_slices()
 
     def init_slices(self):
+        self.qos_monitor = QoSMonitor(self.config)
         self.module_repo = ModuleRepository(self.config)
-        self.runtime = SparseRuntime(self.module_repo, self.config)
+        self.runtime = SparseRuntime(self.module_repo, self.qos_monitor, self.config)
         self.stream_router = StreamRouter(self.runtime, self.config)
         self.cluster_orchestrator = ClusterOrchestrator(self.runtime,
                                                         self.stream_router,
                                                         self.config)
 
         self.slices = [
-                SparseQoSMonitorSlice(self.config),
+                self.qos_monitor,
+                self.module_repo,
                 self.runtime,
                 self.stream_router,
-                self.module_repo,
                 self.cluster_orchestrator
                 ]
 
