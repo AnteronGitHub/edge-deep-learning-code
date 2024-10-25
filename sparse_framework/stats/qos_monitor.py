@@ -47,21 +47,25 @@ class OperatorRuntimeStatisticsRecord:
 
 class OperatorRuntimeStatisticsService:
     def __init__(self):
-        self.records = set()
+        self.active_records = set()
 
     def get_operator_runtime_statistics_record(self, operator, source, sequence_no):
         """Returns an operator runtime statistics records matching given operator and source stream. If one is not
         already found it will be created.
         """
-        for record in self.records:
+        for record in self.active_records:
             if record.operator_id == operator.id \
                     and record.source_stream_id == source.stream_id \
                     and record.source_stream_sequence_no == sequence_no:
                 return record
 
         record = OperatorRuntimeStatisticsRecord(operator.id, source.stream_id, sequence_no)
-        self.records.add(record)
+        self.active_records.add(record)
         return record
+
+    def record_complete(self, record):
+        self.active_records.remove(record)
+        # TODO: Store record in log file
 
 class QoSMonitor(SparseSlice):
     """Quality of Service Monitor Slice maintains a coroutine for monitoring the runtime performance of the node.
@@ -81,6 +85,7 @@ class QoSMonitor(SparseSlice):
     def operator_result_received(self, operator : StreamOperator, source, sequence_no):
         record = self.statistics_service.get_operator_runtime_statistics_record(operator, source, sequence_no)
         record.result_received()
+        self.statistics_service.record_complete(record)
         self.logger.info("Operator %s queueing time: %.2f ms, processing latency: %.2f ms",
                           operator,
                           record.queueing_time,
