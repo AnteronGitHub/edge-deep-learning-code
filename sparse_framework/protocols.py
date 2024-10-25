@@ -141,8 +141,8 @@ class SparseProtocol(SparseTransportProtocol):
     def subscribe_error_received(self, stream_alias : str):
         pass
 
-    def send_data_tuple(self, stream_selector : str, data_tuple):
-        self.send_payload({"op": "data_tuple", "stream_selector": stream_selector, "tuple": data_tuple })
+    def send_data_tuple(self, stream, data_tuple):
+        self.send_payload({"op": "data_tuple", "stream_selector": stream.__str__(), "tuple": data_tuple })
 
     def data_tuple_received(self, stream_selector : str, data_tuple : str):
         pass

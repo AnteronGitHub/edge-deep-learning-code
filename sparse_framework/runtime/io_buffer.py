@@ -20,22 +20,25 @@ class SparseIOBuffer:
         self.lock = m.Lock()
         self.input_buffer = []
 
-    def buffer_input(self, input_data, source_stream, result_callback) -> int:
+    def buffer_input(self, input_data, source_stream, sequence_no, result_callback) -> int:
         """Appends an input tensor to the specified model's input buffer and returns its index.
         """
         with self.lock:
             index = len(self.input_buffer)
-            self.input_buffer.append((self.transferToDevice(input_data), source_stream, result_callback))
+            self.input_buffer.append((self.transferToDevice(input_data),
+                                      source_stream,
+                                      sequence_no,
+                                      result_callback))
 
         self.logger.debug(f"{index+1} samples buffered.")
         return index
 
     def pop_input(self):
         with self.lock:
-            input_data, source_stream, result_callback = self.input_buffer.pop(0)
+            input_data, source_stream, sequence_no, result_callback = self.input_buffer.pop(0)
 
         if self.qos_monitor is not None:
-            self.qos_monitor.operator_input_dispatched(self.operator, source_stream)
+            self.qos_monitor.operator_input_dispatched(self.operator, source_stream, sequence_no)
         self.logger.debug(f"Dispatched sample from buffer.")
 
         return input_data, [result_callback]
@@ -48,11 +51,11 @@ class SparseIOBuffer:
         input_batch = []
         callbacks = []
         batch_size = 0
-        for input_data, source_stream, result_callback in task_data_batch:
+        for input_data, source_stream, sequence_no, result_callback in task_data_batch:
             input_batch.append(input_data)
             callbacks.append(result_callback)
             if self.qos_monitor is not None:
-                self.qos_monitor.operator_input_dispatched(self.operator, source_stream)
+                self.qos_monitor.operator_input_dispatched(self.operator, source_stream, sequence_no)
             batch_size += 1
         self.logger.debug(f"Dispatched batch of {batch_size} samples from buffer.")
 

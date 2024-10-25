@@ -13,9 +13,10 @@ class OperatorRuntimeStatisticsRecord:
     input_buffered_at : float
     result_received_at : float
 
-    def __init__(self, operator_id : str, source_stream_id : str):
+    def __init__(self, operator_id : str, source_stream_id : str, source_stream_sequence_no : int):
         self.operator_id = operator_id
         self.source_stream_id = source_stream_id
+        self.source_stream_sequence_no = source_stream_sequence_no
         self.input_buffered_at = None
         self.result_received_at = None
 
@@ -48,15 +49,17 @@ class OperatorRuntimeStatisticsService:
     def __init__(self):
         self.records = set()
 
-    def get_operator_runtime_statistics_record(self, operator, source):
+    def get_operator_runtime_statistics_record(self, operator, source, sequence_no):
         """Returns an operator runtime statistics records matching given operator and source stream. If one is not
         already found it will be created.
         """
         for record in self.records:
-            if record.operator_id == operator.id and record.source_stream_id == source.stream_id:
+            if record.operator_id == operator.id \
+                    and record.source_stream_id == source.stream_id \
+                    and record.source_stream_sequence_no == sequence_no:
                 return record
 
-        record = OperatorRuntimeStatisticsRecord(operator.id, source.stream_id)
+        record = OperatorRuntimeStatisticsRecord(operator.id, source.stream_id, sequence_no)
         self.records.add(record)
         return record
 
@@ -67,16 +70,16 @@ class QoSMonitor(SparseSlice):
         super().__init__(*args, **kwargs)
         self.statistics_service = OperatorRuntimeStatisticsService()
 
-    def operator_input_buffered(self, operator : StreamOperator, source):
-        record = self.statistics_service.get_operator_runtime_statistics_record(operator, source)
+    def operator_input_buffered(self, operator : StreamOperator, source, sequence_no):
+        record = self.statistics_service.get_operator_runtime_statistics_record(operator, source, sequence_no)
         record.input_buffered()
 
-    def operator_input_dispatched(self, operator : StreamOperator, source):
-        record = self.statistics_service.get_operator_runtime_statistics_record(operator, source)
+    def operator_input_dispatched(self, operator : StreamOperator, source, sequence_no):
+        record = self.statistics_service.get_operator_runtime_statistics_record(operator, source, sequence_no)
         record.input_dispatched()
 
-    def operator_result_received(self, operator : StreamOperator, source):
-        record = self.statistics_service.get_operator_runtime_statistics_record(operator, source)
+    def operator_result_received(self, operator : StreamOperator, source, sequence_no):
+        record = self.statistics_service.get_operator_runtime_statistics_record(operator, source, sequence_no)
         record.result_received()
         self.logger.info("Operator %s queueing time: %.2f ms, processing latency: %.2f ms",
                           operator,

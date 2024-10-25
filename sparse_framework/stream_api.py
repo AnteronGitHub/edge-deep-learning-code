@@ -18,6 +18,7 @@ class SparseStream:
         self.stream_alias = stream_alias
         self.runtime = runtime
 
+        self.sequence_no = 0
         self.protocols = set()
         self.operators = set()
         self.streams = set()
@@ -49,15 +50,18 @@ class SparseStream:
         """Sends a new data tuple to the connected operators and subscribed connections.
         """
         if self.stream_alias is not None:
-            self.logger.debug("Stream %s emitting data to %s operators and %s connections",
+            self.logger.debug("Stream %s emitting data (seq. no. %s) to %s operators and %s connections",
                              self,
+                             self.sequence_no,
                              len(self.operators),
                              len(self.protocols))
         for operator, output_stream in self.operators:
             self.runtime.call_operator(operator, self, data_tuple, output_stream)
 
         for protocol in self.protocols:
-            protocol.send_data_tuple(self.stream_alias or self.stream_id, data_tuple)
+            protocol.send_data_tuple(self, data_tuple)
 
         for stream in self.streams:
             stream.emit(data_tuple)
+
+        self.sequence_no += 1

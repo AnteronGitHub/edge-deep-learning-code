@@ -49,20 +49,23 @@ class SparseRuntime(SparseSlice):
             self.logger.warn(e)
 
     def call_operator(self, operator : StreamOperator, source, input_tuple, output):
+        sequence_no = source.sequence_no
         batch_index = operator.buffer_input(input_tuple,
                                             source,
+                                            sequence_no,
                                             lambda output_tuple: self.result_received(operator,
                                                                                       source,
+                                                                                      sequence_no,
                                                                                       output_tuple,
                                                                                       output))
         if not operator.use_batching or batch_index == 0:
             self.logger.debug("Created task for operator %s", operator)
             self.task_queue.put_nowait(operator)
 
-        self.qos_monitor.operator_input_buffered(operator, source)
+        self.qos_monitor.operator_input_buffered(operator, source, sequence_no)
 
-    def result_received(self, operator : StreamOperator, source, output_tuple, output):
-        self.qos_monitor.operator_result_received(operator, source)
+    def result_received(self, operator : StreamOperator, source, sequence_no, output_tuple, output):
+        self.qos_monitor.operator_result_received(operator, source, sequence_no)
         output.emit(output_tuple)
 
     def find_operator(self, operator_name : str):
