@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+
+COPY requirements_pylint.txt requirements_pylint.txt
+RUN pip install -r requirements_pylint.txt
+
+WORKDIR /app
+COPY sparse_framework sparse_framework
+
+CMD ["pylint", "sparse_framework"]
