@@ -1,3 +1,5 @@
+"""This module implements the stream operator interface.
+"""
 import uuid
 
 from .io_buffer import SparsePytorchIOBuffer
@@ -20,21 +22,32 @@ class StreamOperator:
 
     @property
     def name(self):
+        """This property specifies the name of the operator.
+        """
         return self.__class__.__name__
 
     def set_runtime(self, runtime):
+        """Sets the runtime for the operator after it is placed on a node.
+        """
         self.runtime = runtime
 
     def buffer_input(self, input_data, source_stream, sequence_no, result_callback):
+        """Buffers an input to be processed by the operator.
+        """
         return self.memory_buffer.buffer_input(input_data, source_stream, sequence_no, result_callback)
 
     def execute_task(self):
-        features, callbacks = self.memory_buffer.dispatch_batch() if self.use_batching else self.memory_buffer.pop_input()
+        """Processes a single tuple or a batch of tuples in the buffer. This function is invoked in a separate thread,
+        controlled by the executor.
+        """
+        data, callbacks = self.memory_buffer.dispatch_batch() if self.use_batching else self.memory_buffer.pop_input()
 
-        result = self.call(features)
+        result = self.call(data)
 
         self.memory_buffer.result_received(result, callbacks, use_batching = self.use_batching)
 
     def call(self, input_tuple):
-        pass
-
+        """This function defines, how the operator processes an input tuple. It supposed to be overriden by the
+        application.
+        """
+        return input_tuple

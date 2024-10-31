@@ -1,3 +1,5 @@
+"""This module contains the operator runtime class.
+"""
 import asyncio
 
 from ..module_repo import ModuleRepository, OperatorNotFoundError
@@ -46,9 +48,12 @@ class SparseRuntime(SparseSlice):
 
             return o
         except OperatorNotFoundError as e:
-            self.logger.warn(e)
+            self.logger.warning(e)
+            return None
 
     def call_operator(self, operator : StreamOperator, source, input_tuple, output):
+        """Invokes a stream operato in the runtime with the given input tuple.
+        """
         sequence_no = source.sequence_no
         batch_index = operator.buffer_input(input_tuple,
                                             source,
@@ -65,28 +70,37 @@ class SparseRuntime(SparseSlice):
         self.qos_monitor.operator_input_buffered(operator, source, sequence_no)
 
     def result_received(self, operator : StreamOperator, source, sequence_no, output_tuple, output):
+        """Callback for when a result has been processed in the runtime, and the result has been transferred back to
+        host memory.
+        """
         self.qos_monitor.operator_result_received(operator, source, sequence_no)
         output.emit(output_tuple)
 
     def find_operator(self, operator_name : str):
+        """Finds an operator in the runtime.
+        """
         for operator in self.operators:
             if operator.name == operator_name:
                 return operator
 
         return None
 
-    def sync_received(self, protocol, stream_id, sync):
-        self.logger.debug(f"Received {sync} s sync")
-        if self.source is not None:
-            if (self.source.no_samples > 0):
+    def sync_received(self, protocol, source, sync):
+        """Callback for when a sync delay is received for a stream.
+        """
+        # TODO: This functionality is not currently used, and it should be taken back to use.
+        self.logger.debug("Received %d s sync", sync)
+        if source is not None:
+            if source.no_samples > 0:
                 offload_latency = protocol.request_statistics.get_offload_latency(protocol.current_record)
 
-                if not self.source.use_scheduling:
+                if not source.use_scheduling:
                     sync = 0.0
 
-                target_latency = self.source.target_latency
+                target_latency = source.target_latency
 
                 loop = asyncio.get_running_loop()
-                loop.call_later(target_latency-offload_latency + sync if target_latency > offload_latency else 0, self.source.emit)
+                sync_delay = target_latency-offload_latency + sync if target_latency > offload_latency else 0
+                loop.call_later(sync_delay, source.emit)
             else:
                 protocol.transport.close()

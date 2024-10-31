@@ -1,7 +1,7 @@
-import asyncio
+"""This module includes functionality related to software modules uploaded into a Sparse cluster.
+"""
 import importlib
 import os
-import pickle
 import shutil
 
 from .node import SparseSlice
@@ -15,6 +15,8 @@ class SparseModule:
         self.app_module = None
 
     def load(self, app_repo_path : str):
+        """Loads a module into memory from the specified module path.
+        """
         if self.app_module is None:
             shutil.unpack_archive(self.zip_path, os.path.join(app_repo_path, f"sparseapp_{self.name}"))
             self.app_module = importlib.import_module(f".sparseapp_{self.name}", package="sparse_framework.apps")
@@ -38,11 +40,15 @@ class ModuleRepository(SparseSlice):
         self.apps = set()
 
     def add_app_module(self, name : str, zip_path : str):
+        """Adds a Sparse module into the repository.
+        """
         module = SparseModule(name, zip_path)
         self.apps.add(module)
         return module
 
     def get_operator_factory(self, operator_name : str):
+        """Returns a factory for placing an operator into the local runtime.
+        """
         for app in self.apps:
             app_module = app.load(self.config.app_repo_path)
             for operator_factory in app_module.__all__:

@@ -1,5 +1,8 @@
+"""This module contains stream operator IO buffer implementation.
+"""
 import logging
 import multiprocessing
+import torch
 
 __all__ = ["SparseIOBuffer"]
 
@@ -25,25 +28,29 @@ class SparseIOBuffer:
         """
         with self.lock:
             index = len(self.input_buffer)
-            self.input_buffer.append((self.transferToDevice(input_data),
+            self.input_buffer.append((self.load_to_device(input_data),
                                       source_stream,
                                       sequence_no,
                                       result_callback))
 
-        self.logger.debug(f"{index+1} samples buffered.")
+        self.logger.debug("%d samples buffered.", index+1)
         return index
 
     def pop_input(self):
+        """Read and remove a single tuple from the buffer.
+        """
         with self.lock:
             input_data, source_stream, sequence_no, result_callback = self.input_buffer.pop(0)
 
         if self.qos_monitor is not None:
             self.qos_monitor.operator_input_dispatched(self.operator, source_stream, sequence_no)
-        self.logger.debug(f"Dispatched sample from buffer.")
+        self.logger.debug("Dispatched sample from buffer.")
 
         return input_data, [result_callback]
 
     def dispatch_batch(self):
+        """Read and remove all of the tuples from the buffer.
+        """
         with self.lock:
             task_data_batch = self.input_buffer
             self.input_buffer = []
@@ -57,12 +64,14 @@ class SparseIOBuffer:
             if self.qos_monitor is not None:
                 self.qos_monitor.operator_input_dispatched(self.operator, source_stream, sequence_no)
             batch_size += 1
-        self.logger.debug(f"Dispatched batch of {batch_size} samples from buffer.")
+        self.logger.debug("Dispatched batch of %d samples from buffer.", batch_size)
 
         return input_batch, callbacks
 
     def result_received(self, result, callbacks, use_batching : bool):
-        transferred_result = self.transferToHost(result)
+        """Callback for when a task executor has completed processing a tuple.
+        """
+        transferred_result = self.load_to_host(result)
 
         if use_batching:
             for batch_index, callback in enumerate(callbacks):
@@ -72,13 +81,19 @@ class SparseIOBuffer:
             for callback in callbacks:
                 callback(transferred_result)
 
-    def transferToDevice(self, input_data):
-        pass
+    def load_to_device(self, data_tuple):
+        """Transfer a tuple from the host memory to the accelerator (e.g. GPU) memory.
 
-    def transferToHost(self, output_data):
-        pass
+        This function will likely need to be implemented based on the semantics of the accelerator api.
+        """
+        return data_tuple
 
-import torch
+    def load_to_host(self, data_tuple):
+        """Transfer a tuple from the accelerator (e.g. GPU) memory to the host memory.
+
+        This function will likely need to be implemented based on the semantics of the accelerator api.
+        """
+        return data_tuple
 
 class SparsePytorchIOBuffer(SparseIOBuffer):
     """Memory buffer for Node's task executor.
@@ -92,11 +107,11 @@ class SparsePytorchIOBuffer(SparseIOBuffer):
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    def transferToDevice(self, tensor):
-        return tensor.to(self.device)
+    def load_to_device(self, data_tuple):
+        return data_tuple.to(self.device)
 
-    def transferToHost(self, tensor):
-        return tensor.to("cpu")
+    def load_to_host(self, data_tuple):
+        return data_tuple.to("cpu")
 
     def dispatch_batch(self):
         input_batch, callbacks = super().dispatch_batch()

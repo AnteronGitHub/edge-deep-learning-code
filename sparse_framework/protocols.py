@@ -1,3 +1,5 @@
+"""This module contains the basic transport protocol implementations used by the cluster.
+"""
 import asyncio
 import io
 import logging
@@ -23,9 +25,13 @@ class SparseTransportProtocol(asyncio.Protocol):
         self.data_size = 0
 
     def __str__(self):
+        """Returns the peer IP or 'unconnected' if no transport object is yet created.
+        """
         return "unconnected" if self.transport is None else self.transport.get_extra_info('peername')[0]
 
     def clear_buffer(self):
+        """Initializes the byte buffer and the related counters.
+        """
         self.data_buffer = io.BytesIO()
         self.receiving_data = False
         self.data_type = None
@@ -63,6 +69,8 @@ class SparseTransportProtocol(asyncio.Protocol):
             self.message_received(payload_type, payload_bytes)
 
     def message_received(self, payload_type : str, data : bytes):
+        """Callback function that is triggered when all the bytes specified by a message header been received.
+        """
         if payload_type == "f":
             self.file_received(data)
         elif payload_type == "o":
@@ -74,12 +82,18 @@ class SparseTransportProtocol(asyncio.Protocol):
                                   self.data_buffer.getbuffer().nbytes)
 
     def file_received(self, data : bytes):
-        pass
+        """Callback function that is triggered when all the bytes specified by a message header that specifies file
+        type message.
+        """
 
     def object_received(self, obj : dict):
-        pass
+        """Callback function that is triggered when all the bytes specified by a message header that specifies object
+        type message.
+        """
 
-    def send_file(self, file_path):
+    def send_file(self, file_path : str):
+        """Transmits a byte file specified by the file path to the peer.
+        """
         with open(file_path, "rb") as f:
             data_bytes = f.read()
             file_size = len(data_bytes)
@@ -88,6 +102,8 @@ class SparseTransportProtocol(asyncio.Protocol):
             self.transport.write(data_bytes)
 
     def send_payload(self, payload : dict):
+        """Transmits a given object to the peer.
+        """
         payload_data = pickle.dumps(payload)
         payload_size = len(payload_data)
 
@@ -98,80 +114,139 @@ class SparseProtocol(SparseTransportProtocol):
     """Class includes application level messages used by sparse nodes.
     """
     def send_create_deployment(self, deployment : Deployment):
+        """Propagates a deployment in the cluster.
+        """
         self.send_payload({"op": "create_deployment", "deployment": deployment})
 
     def create_deployment_received(self, deployment : Deployment):
-        pass
+        """Callback triggered when a deployment creation is received.
+        """
 
     def send_create_deployment_ok(self):
+        """Replies to the sender that a deployment was created successfully.
+        """
         self.send_payload({"op": "create_deployment", "status": "success"})
 
+    def create_deployment_ok_received(self):
+        """Callback triggered when a deployment creation has been acknowledged successful by the peer.
+        """
+
     def send_create_connector_stream(self, stream_id : str = None, stream_alias : str = None):
+        """Propagates a stream to the peer.
+        """
         self.send_payload({"op": "create_connector_stream", \
                            "stream_id": stream_id, \
                            "stream_alias": stream_alias})
 
     def create_connector_stream_received(self, stream_id : str = None, stream_alias : str = None):
-        pass
+        """Callback triggered when a stream has been received.
+        """
 
     def send_create_connector_stream_ok(self, stream_id : str, stream_alias : str):
+        """Replies to the sender that a stream connector was successfully.
+        """
         self.send_payload({"op": "create_connector_stream",
                            "status": "success",
                            "stream_id": stream_id,
                            "stream_alias" : stream_alias})
 
     def create_connector_stream_ok_received(self, stream_id : str, stream_alias : str):
-        pass
+        """Callback triggered when a successful stream reply is received.
+        """
 
     def send_subscribe(self, stream_alias : str):
+        """Initiates a stream subscription to a given stream alias.
+        """
         self.send_payload({"op": "subscribe", "stream_alias": stream_alias})
 
     def subscribe_received(self, stream_alias : str):
-        pass
+        """Callback triggered when a stream subscription is received.
+        """
 
     def send_subscribe_ok(self, stream_alias : str):
+        """Replies that a requested stream subscription was successful.
+        """
         self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "success"})
 
     def subscribe_ok_received(self, stream_alias : str):
-        pass
+        """Callback for when a requested stream has been acknowledged to be successful.
+        """
 
     def send_subscribe_error(self, stream_alias : str):
+        """Replies that a requested stream subscription failed.
+        """
         self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "error"})
 
     def subscribe_error_received(self, stream_alias : str):
-        pass
+        """Callback for when a requested stream has been failed.
+        """
 
     def send_data_tuple(self, stream, data_tuple):
-        self.send_payload({"op": "data_tuple", "stream_selector": stream.__str__(), "tuple": data_tuple })
+        """Sends a new data tuple for a stream.
+        """
+        self.send_payload({"op": "data_tuple", "stream_selector": str(stream), "tuple": data_tuple })
 
     def data_tuple_received(self, stream_selector : str, data_tuple : str):
-        pass
+        """Callback for when a new data tuple for a stream is received.
+        """
 
     def send_init_module_transfer(self, module_name : str):
+        """Initiates a module transfer to a peer.
+        """
         self.send_payload({ "op": "init_module_transfer", "module_name": module_name })
 
-    def init_module_transfer_received(self):
-        pass
+    def init_module_transfer_received(self, module_name : str):
+        """Callback for when a module transfer is received.
+        """
 
     def send_init_module_transfer_ok(self):
+        """Replies that a requested module transfer has been initialized successfully.
+        """
         self.send_payload({"op": "init_module_transfer", "status": "accepted"})
 
+    def init_module_transfer_ok_received(self):
+        """Callback for when a module transfer has been acknowledged to have succeeded by the peer.
+        """
+
     def send_init_module_transfer_error(self):
+        """Replies that a requested module transfer has failed to initialize.
+        """
         self.send_payload({"op": "init_module_transfer", "status": "rejected"})
 
+    def init_module_transfer_error_received(self):
+        """Callback for when a module transfer has been acknowledged to be failed by the peer.
+        """
+
     def send_transfer_file_ok(self):
+        """Replies that a file has been transferred successfully.
+        """
         self.send_payload({"op": "transfer_file", "status": "success"})
 
     def transfer_file_ok_received(self):
-        pass
+        """Callback for when a file transfer has been acknowledged by the peer.
+        """
 
     def send_connect_downstream(self):
+        """Initiates a downstream connection.
+        """
         self.send_payload({"op": "connect_downstream"})
 
+    def connect_downstream_received(self):
+        """Callback for when a new downstream connection request has been received.
+        """
+
     def send_connect_downstream_ok(self):
+        """Replies that the peer has connected as a downstream.
+        """
         self.send_payload({"op": "connect_downstream", "status": "success"})
 
+    def connect_downstream_ok_received(self):
+        """Callback for when a downstream connection has been acknowledged successful.
+        """
+
     def object_received(self, obj : dict):
+        """Callback for handling the received messages.
+        """
         if obj["op"] == "connect_downstream":
             if "status" in obj:
                 if obj["status"] == "success":
@@ -234,6 +309,8 @@ class SparseProtocol(SparseTransportProtocol):
             super().object_received(obj)
 
 class ClusterProtocol(SparseProtocol):
+    """Super class for cluster node transport protocols.
+    """
     def __init__(self, node):
         super().__init__()
         self.node = node
@@ -249,6 +326,8 @@ class ClusterProtocol(SparseProtocol):
         self.logger.debug("Connection %s disconnected.", self)
 
     def transfer_module(self, module : SparseModule):
+        """Starts a module transfer for the specified locally available module.
+        """
         self.transferring_module = module
 
         self.send_init_module_transfer(self.transferring_module.name)
