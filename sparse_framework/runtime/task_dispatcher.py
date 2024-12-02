@@ -1,10 +1,9 @@
+"""This module implements task queue dispatcher daemon.
+"""
 import asyncio
-import functools
 import logging
 
 from concurrent.futures import ThreadPoolExecutor
-
-from .operator import StreamOperator
 
 class TaskDispatcher:
     """Task dispatcher receives operator calls in a queue and execute them in a separate thread.
@@ -19,6 +18,8 @@ class TaskDispatcher:
         self.queue = task_queue
 
     async def start(self):
+        """Starts the task queue dispatcher.
+        """
         loop = asyncio.get_running_loop()
         while True:
             operator = await self.queue.get()

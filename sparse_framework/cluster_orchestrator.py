@@ -1,10 +1,11 @@
+"""This module contains functionality for the cluster orchestration.
+"""
 from .deployment import Deployment
 from .module_repo import SparseModule
 from .node import SparseSlice
 from .protocols import SparseProtocol
 from .runtime import SparseRuntime
 from .stream_api import SparseStream
-from .stream_router import StreamRouter
 
 class ClusterConnection:
     """Data class for maintaining data about connected cluster nodes.
@@ -17,12 +18,18 @@ class ClusterConnection:
         self.direction = direction
 
     def transfer_module(self, app : SparseModule):
+        """Transfers a module to the connection peer.
+        """
         self.protocol.transfer_module(app)
 
     def create_deployment(self, app_dag : dict):
+        """Creates a deployment to the connection peer.
+        """
         self.protocol.create_deployment(app_dag)
 
 class ClusterOrchestrator(SparseSlice):
+    """Cluster orchestrator distributes modules and migrates operators within the cluster.
+    """
     def __init__(self, runtime : SparseRuntime, stream_router : SparseRuntime, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -76,27 +83,29 @@ class ClusterOrchestrator(SparseSlice):
                 stream.subscribe(connection.protocol)
 
     def deploy_pipelines(self, streams : set, pipelines : dict, source : SparseStream = None):
+        """Deploys pipelines to a cluster.
+        """
         for stream_selector in pipelines.keys():
             if stream_selector in streams:
                 output_stream = self.stream_router.get_stream(stream_alias=stream_selector)
             else:
                 operator = self.runtime.place_operator(stream_selector)
                 if source is None:
-                    self.logger.warn("Placed operator '%s' with no input stream", operator)
+                    self.logger.warning("Placed operator '%s' with no input stream", operator)
                 else:
                     output_stream = self.stream_router.get_stream()
                     source.connect_to_operator(operator, output_stream)
 
             destinations = pipelines[stream_selector]
-            if type(destinations) == dict:
+            if isinstance(destinations, dict):
                 self.deploy_pipelines(streams, destinations, output_stream)
-            elif type(destinations) == list:
+            elif isinstance(destinations, list):
                 for selector in destinations:
                     if selector in streams:
                         final_stream = self.stream_router.get_stream(selector)
                         output_stream.connect_to_stream(final_stream)
                     else:
-                        self.logger.warn("Leaf operator %s not created", selector)
+                        self.logger.warning("Leaf operator %s not created", selector)
 
     def create_deployment(self, deployment : Deployment):
         """Deploys a Sparse pipelines to a cluster.

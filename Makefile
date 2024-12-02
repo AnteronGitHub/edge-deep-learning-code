@@ -7,12 +7,16 @@ sparse_stats_dir := /var/lib/sparse/stats
 docker_image      := anterondocker/sparse-framework
 dockerfile        := Dockerfile
 docker_build_file := .DOCKER
+docker_build_file_pylint := .DOCKER_PYLINT
 
 docker_tag_graphs        := graphs
+docker_tag_pylint        := pylint
 dockerfile_graphs        := Dockerfile.graphs
+dockerfile_pylint        := Dockerfile.pylint
 docker_build_file_graphs := .DOCKER_GRAPHS
 src_graphs               := make_graphs.py
 py_requirements_graphs   := requirements_graphs.txt
+py_requirements_pylint   := requirements_pylint.txt
 
 ifneq (,$(shell uname -a | grep tegra))
 	docker_base_image=nvcr.io/nvidia/l4t-pytorch:r34.1.0-pth1.12-py3
@@ -34,7 +38,12 @@ $(docker_build_file): $(sparse_py) $(dockerfile)
 	docker image prune -f
 	touch $(docker_build_file)
 
-.PHONY: docker clean run run-experiment clean-experiment graphs
+$(docker_build_file_pylint): $(dockerfile_pylint) $(py_requirements_pylint)
+	docker build . -f $(dockerfile_pylint) \
+		-t $(docker_image):$(docker_tag_pylint)
+	touch $(docker_build_file_pylint)
+
+.PHONY: docker clean run run-pylint run-experiment clean-experiment graphs
 
 docker: $(docker_build_file)
 	#make -C examples/splitnn docker
@@ -46,6 +55,9 @@ clean:
 
 run:
 	scripts/deploy_worker.sh
+
+run-pylint: $(docker_build_file_pylint)
+	docker run --rm -v $(abspath .):/app $(docker_image):$(docker_tag_pylint)
 
 run-experiment:
 	scripts/run-experiment.sh

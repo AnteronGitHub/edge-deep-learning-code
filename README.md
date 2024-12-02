@@ -8,6 +8,16 @@ directory.
 pip install sparse-framework
 ```
 
+## Development
+
+### Pylint
+
+Run pylint with the following command:
+
+```
+make run-pylint
+```
+
 ## Example Applications
 
 The repository includes example applications (in the [examples directory](https://github.com/AnteronGitHub/sparse/blob/master/examples)). The applications are tested

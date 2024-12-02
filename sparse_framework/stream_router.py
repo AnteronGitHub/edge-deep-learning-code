@@ -1,16 +1,9 @@
-import asyncio
-
+"""This module implements stream routing functionality in the cluster.
+"""
 from .node import SparseSlice
 from .protocols import SparseProtocol
 from .runtime import SparseRuntime
 from .stream_api import SparseStream
-
-class SparseDeployment:
-    """Sparse deployment specifies a data flow between sources, operators and sinks.
-    """
-    def __init__(self, name : str, dag : dict):
-        self.name = name
-        self.dag = dag
 
 class StreamRouter(SparseSlice):
     """Stream router then ensures that streams are routed according to application specifications. It receives
@@ -40,12 +33,14 @@ class StreamRouter(SparseSlice):
         return connector_stream
 
     def tuple_received(self, stream_selector : str, data_tuple):
+        """Called to route a tuple needs in a node.
+        """
         for stream in self.streams:
             if stream.matches_selector(stream_selector):
                 stream.emit(data_tuple)
                 self.logger.debug("Received data for stream %s", stream)
                 return
-        self.logger.warn("Received data for stream %s without a connector", stream_selector)
+        self.logger.warning("Received data for stream %s without a connector", stream_selector)
 
     def subscribe(self, stream_alias : str, protocol : SparseProtocol):
         """Subscribes a protocol to receive tuples in a data stream.

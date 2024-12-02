@@ -1,16 +1,16 @@
 """This module includes functionality related to stream api.
 """
-import asyncio
 import uuid
 import logging
 
 from .protocols import SparseProtocol
-from .runtime import SparseRuntime
 from .runtime.operator import StreamOperator
 
 __all__ = ["SparseStream"]
 
 class SparseStream:
+    """Sparse stream is an abstraction for an unbounded set of data tuples.
+    """
     def __init__(self, stream_id : str = None, stream_alias : str = None, runtime = None):
         self.logger = logging.getLogger("sparse")
 
@@ -27,8 +27,9 @@ class SparseStream:
         return self.stream_alias or self.stream_id
 
     def matches_selector(self, stream_selector : str) -> bool:
-        return stream_selector == self.stream_alias \
-                or stream_selector == self.stream_id
+        """Checks if a specified stream selector matches this stream.
+        """
+        return stream_selector in (self.stream_alias, self.stream_id)
 
     def subscribe(self, protocol : SparseProtocol):
         """Subscribes a protocol to receive stream tuples.
@@ -43,6 +44,8 @@ class SparseStream:
         self.logger.info("Stream %s connected to operator %s with output stream %s", self, operator.name, output_stream)
 
     def connect_to_stream(self, stream):
+        """Connects this stream to another, sending all new tuples to the target.
+        """
         self.streams.add(stream)
         self.logger.info("Connected stream %s to stream %s", self, stream)
 

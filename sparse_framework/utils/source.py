@@ -1,3 +1,5 @@
+"""This module implements helpers for creating simulated data sources for testing and prototyping purposes.
+"""
 import asyncio
 import uuid
 import logging
@@ -38,7 +40,8 @@ class SparseSource:
         self.stream = None
 
     def get_tuple(self):
-        pass
+        """This function should be implemented by inheriting classes to specify how the next tuple is read.
+        """
 
     async def connect(self, endpoint_host : str = "sparse-root", endpoint_port : int = 50006):
         """Called to start the data source. Connects the source to a cluster host and starts streaming data.
@@ -48,6 +51,8 @@ class SparseSource:
         await self.start_stream()
 
     async def initialize_stream(self, endpoint_host : str, endpoint_port : int):
+        """Initializes the stream in the cluster before starting to transmit data tuples.
+        """
         loop = asyncio.get_running_loop()
         on_stream_initialized = loop.create_future()
 
@@ -61,11 +66,12 @@ class SparseSource:
                 stream = await on_stream_initialized
                 return stream
             except ConnectionRefusedError:
-                self.logger.warn("Connection refused. Re-trying in 5 seconds.")
+                self.logger.warning("Connection refused. Re-trying in 5 seconds.")
                 await asyncio.sleep(5)
 
     async def start_stream(self):
+        """Starts streaming data.
+        """
         while True:
             self.stream.emit(self.get_tuple())
             await asyncio.sleep(self.target_latency / 1000.0)
-

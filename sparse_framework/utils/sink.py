@@ -1,6 +1,10 @@
+"""This module contains a utility sink interface, that can be used in python applications.
+"""
 import asyncio
 
 from ..protocols import SparseProtocol
+
+from .helper_functions import retry_connection_until_successful
 
 class SinkProtocol(SparseProtocol):
     """Sink protocol connects to a cluster end point and subscribes to a stream.
@@ -19,32 +23,31 @@ class SinkProtocol(SparseProtocol):
     def subscribe_ok_received(self, stream_alias : str):
         self.logger.info("Subscribed to stream '%s'", stream_alias)
 
-    def connection_lost(self, transport):
+    def connection_lost(self, exc):
         self.on_con_lost.set_result(True)
 
-    def data_tuple_received(self, stream_id : str, data_tuple):
+    def data_tuple_received(self, stream_selector : str, data_tuple):
         self.on_tuple_received(data_tuple)
 
 class SparseSink:
+    """Utility class that uses Sink Protocol to connect to a cluster end point and subscribe to a stream.
+    """
     @property
     def type(self):
+        """The type of the sink.
+        """
         return self.__class__.__name__
 
     def tuple_received(self, new_tuple):
-        pass
+        """Function that can be implemented by inheriting classes to determine what to do when a new tuple is received
+        from a stream.
+        """
 
     async def connect(self, stream_alias : str, endpoint_host : str, endpoint_port : int = 50006):
-        loop = asyncio.get_running_loop()
-        on_con_lost = loop.create_future()
-
-        while True:
-            try:
-                self.logger.debug("Connecting to cluster endpoint on %s:%s.", endpoint_host, endpoint_port)
-                await loop.create_connection(lambda: SinkProtocol(stream_alias, self.tuple_received, on_con_lost), \
-                                             endpoint_host, \
-                                             endpoint_port)
-                await on_con_lost
-                break
-            except ConnectionRefusedError:
-                self.logger.warn("Connection refused. Re-trying in 5 seconds.")
-                await asyncio.sleep(5)
+        """Connects to a cluster end point to subscribe to a stream.
+        """
+        await retry_connection_until_successful(lambda on_con_lost: SinkProtocol(stream_alias, \
+                                                                                 self.tuple_received, \
+                                                                                 on_con_lost), \
+                                                endpoint_host, \
+                                                endpoint_port)

@@ -1,3 +1,5 @@
+"""This module implements helper functionality for connecting to the cluster from python programs.
+"""
 import asyncio
 import logging
 import os
@@ -6,6 +8,8 @@ import tempfile
 
 from ..deployment import Deployment
 from ..protocols import SparseProtocol
+
+from .helper_functions import retry_connection_until_successful
 
 class ModuleUploaderProtocol(SparseProtocol):
     """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
@@ -81,38 +85,22 @@ class SparseAPIClient:
         return os.path.join(tempfile.gettempdir(), f"{module_name}.zip")
 
     async def upload_module(self, module_name : str, module_archive_path : str):
-        loop = asyncio.get_running_loop()
-        on_con_lost = loop.create_future()
-
-        while True:
-            try:
-                self.logger.debug("Connecting to root server on %s:%s.", self.api_host, self.api_port)
-                await loop.create_connection(lambda: ModuleUploaderProtocol(module_name, \
-                                                                            module_archive_path, \
-                                                                            on_con_lost), \
-                                             self.api_host, \
-                                             self.api_port)
-                await on_con_lost
-                break
-            except ConnectionRefusedError:
-                self.logger.warn("Connection refused. Re-trying in 5 seconds.")
-                await asyncio.sleep(5)
+        """Uploads an application module to the cluster.
+        """
+        await retry_connection_until_successful(lambda on_con_lost: ModuleUploaderProtocol(module_name, \
+                                                                                           module_archive_path, \
+                                                                                           on_con_lost), \
+                                                self.api_host, \
+                                                self.api_port, \
+                                                self.logger)
 
     async def post_deployment(self, deployment : Deployment):
-        loop = asyncio.get_running_loop()
-        on_con_lost = loop.create_future()
-
-        while True:
-            try:
-                self.logger.debug("Connecting to root server on %s:%s.", self.api_host, self.api_port)
-                await loop.create_connection(lambda: DeploymentPostProtocol(deployment, on_con_lost), \
-                                             self.api_host, \
-                                             self.api_port)
-                await on_con_lost
-                break
-            except ConnectionRefusedError:
-                self.logger.warn("Connection refused. Re-trying in 5 seconds.")
-                await asyncio.sleep(5)
+        """Creates a new deployment to the cluster.
+        """
+        await retry_connection_until_successful(lambda on_con_lost: DeploymentPostProtocol(deployment, on_con_lost), \
+                                                self.api_host, \
+                                                self.api_port, \
+                                                self.logger)
 
     def create_module(self, module_dir : str = '.'):
         """Archives a Sparse module and uploads it to a running cluster.

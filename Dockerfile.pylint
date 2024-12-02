@@ -1,0 +1,9 @@
+FROM anterondocker/sparse-framework:pytorch
+
+COPY requirements_pylint.txt requirements_pylint.txt
+RUN pip install -r requirements_pylint.txt
+
+WORKDIR /app
+COPY sparse_framework sparse_framework
+
+CMD ["pylint", "sparse_framework"]

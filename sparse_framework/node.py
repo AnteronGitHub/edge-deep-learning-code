@@ -1,7 +1,8 @@
+"""This module implements basic cluster node functionality.
+"""
 import asyncio
 import logging
 import os
-import pickle
 import uuid
 
 from dotenv import load_dotenv
@@ -19,9 +20,13 @@ class SparseSlice:
         self.config = config
 
     def get_futures(self, futures):
+        """Collects the futures created by the slice, and adds them to the list
+        """
         return futures
 
 class SparseNodeConfig:
+    """Data class for the configuration options available for a cluster node.
+    """
     def __init__(self):
         self.upstream_host = None
         self.upstream_port = None
@@ -32,6 +37,8 @@ class SparseNodeConfig:
         self.app_repo_path = None
 
     def load_config(self):
+        """Loads the configuration.
+        """
         load_dotenv(dotenv_path=".env")
 
         self.upstream_host = os.environ.get('MASTER_UPSTREAM_HOST') or '127.0.0.1'
@@ -67,6 +74,8 @@ class SparseNode:
         self.init_slices()
 
     def init_slices(self):
+        """Initializes node slices.
+        """
         self.qos_monitor = QoSMonitor(self.config)
         self.module_repo = ModuleRepository(self.config)
         self.runtime = SparseRuntime(self.module_repo, self.qos_monitor, self.config)
@@ -83,7 +92,7 @@ class SparseNode:
                 self.cluster_orchestrator
                 ]
 
-    def get_futures(self, is_worker = True):
+    def get_futures(self):
         """Collects node coroutines to be executed on startup.
         """
         futures = [self.start_app_server()]
@@ -97,6 +106,8 @@ class SparseNode:
         return futures
 
     async def start_app_server(self, listen_address = '0.0.0.0'):
+        """Starts the cluster server.
+        """
         from .protocols import ClusterServerProtocol
 
         loop = asyncio.get_running_loop()
@@ -109,31 +120,22 @@ class SparseNode:
             await server.serve_forever()
 
     async def connect_to_downstream_server(self):
+        """Connects to another cluster node.
+        """
         from .protocols import ClusterClientProtocol
+        from .utils.helper_functions import retry_connection_until_successful
 
-        loop = asyncio.get_running_loop()
-        on_con_lost = loop.create_future()
+        await retry_connection_until_successful(lambda on_con_lost: ClusterClientProtocol(on_con_lost, self), \
+                                                self.config.root_server_address, \
+                                                self.config.root_server_port, \
+                                                self.logger)
 
-        while True:
-            try:
-                self.logger.debug("Connecting to downstream server on %s:%s.", \
-                                  self.config.root_server_address, \
-                                  self.config.root_server_port)
-                await loop.create_connection(lambda: ClusterClientProtocol(on_con_lost, self), \
-                                             self.config.root_server_address, \
-                                             self.config.root_server_port)
-                await on_con_lost
-                break
-            except ConnectionRefusedError:
-                self.logger.warn("Connection refused. Re-trying in 5 seconds.")
-                await asyncio.sleep(5)
-
-    async def start(self, is_root = True, operator_factory = None, source_factory = None, sink_factory = None):
+    async def start(self):
         """Starts the main task loop by collecting all of the future objects.
 
         NB! When subclassing SparseNode instead of extending this function the user should use the get_futures
         function.
         """
-        futures = self.get_futures(is_worker=is_root)
+        futures = self.get_futures()
 
         await asyncio.gather(*futures)

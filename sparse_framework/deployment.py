@@ -1,6 +1,10 @@
+"""This module includes software abstractions for application deployment.
+"""
 import yaml
 
 class Deployment:
+    """Application deployment defines data pipelines from input streams, and produces new output streams.
+    """
     name : str
     streams : list
     pipelines : dict
@@ -15,7 +19,9 @@ class Deployment:
 
     @classmethod
     def from_yaml(cls, file_path : str):
-        with open(file_path) as f:
+        """Parses a deployment from yaml file.
+        """
+        with open(file_path, encoding='utf-8') as f:
             data = yaml.safe_load(f)
 
         return cls(data["name"], data["streams"], data["pipelines"])
