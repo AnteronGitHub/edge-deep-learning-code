@@ -110,27 +110,97 @@ class SparseTransportProtocol(asyncio.Protocol):
         self.transport.write(struct.pack("!sQ", b"o", payload_size))
         self.transport.write(payload_data)
 
-class SparseProtocol(SparseTransportProtocol):
-    """Class includes application level messages used by sparse nodes.
+class MultiplexerProtocol(SparseTransportProtocol):
+    """Multiplexes protocols into the same network connection. Provides the same external interface as each of the
+    multiplexed protocol.
     """
-    def send_create_deployment(self, deployment : Deployment):
-        """Propagates a deployment in the cluster.
-        """
-        self.send_payload({"op": "create_deployment", "deployment": deployment})
+    protocols : set
+
+    def __init__(self, protocols : set = None):
+        super().__init__()
+        if protocols is None:
+            self.protocols = set()
+        else:
+            self.protocols = protocols
+
+    def connection_made(self, transport):
+        for protocol in self.protocols:
+            protocol.connection_made(transport)
+        super().connection_made(transport)
+
+    def object_received(self, obj : dict):
+        for protocol in self.protocols:
+            protocol.object_received(obj)
+
+    def connection_lost(self, exc):
+        for protocol in self.protocols:
+            protocol.connection_lost(exc)
+        super().connection_lost(exc)
+
+class DeploymentServerProtocol(SparseTransportProtocol):
+    """Deployment server protocol receives and handles requests to create new deployments into a sparse cluster.
+    """
+    def __init__(self, cluster_orchestrator):
+        super().__init__()
+        self.cluster_orchestrator = cluster_orchestrator
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "create_deployment" and "status" not in obj:
+            deployment = obj["deployment"]
+            self.create_deployment_received(deployment)
 
     def create_deployment_received(self, deployment : Deployment):
         """Callback triggered when a deployment creation is received.
         """
+        self.cluster_orchestrator.create_deployment(deployment)
+
+        self.send_create_deployment_ok()
 
     def send_create_deployment_ok(self):
         """Replies to the sender that a deployment was created successfully.
         """
         self.send_payload({"op": "create_deployment", "status": "success"})
 
-    def create_deployment_ok_received(self):
-        """Callback triggered when a deployment creation has been acknowledged successful by the peer.
-        """
+class DeploymentClientProtocol(SparseTransportProtocol):
+    """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
 
+    Application is deployed in two phases. First its DAG is deployed as a dictionary, and then the application modules
+    are deployed as a ZIP archive.
+    """
+    def __init__(self, deployment : Deployment, on_con_lost : asyncio.Future, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.on_con_lost = on_con_lost
+        self.deployment = deployment
+
+    def connection_made(self, transport):
+        super().connection_made(transport)
+
+        self.send_create_deployment(self.deployment)
+
+    def send_create_deployment(self, deployment : Deployment):
+        """Propagates a deployment in the cluster.
+        """
+        self.send_payload({"op": "create_deployment", "deployment": deployment})
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "create_deployment" and "status" in obj:
+            if obj["status"] == "success":
+                self.create_deployment_ok_received()
+            else:
+                self.logger.info("Unable to create a deployment")
+
+    def create_deployment_ok_received(self):
+        self.logger.info("Deployment '%s' created successfully.", self.deployment)
+        self.transport.close()
+
+    def connection_lost(self, exc):
+        if self.on_con_lost is not None:
+            self.on_con_lost.set_result(True)
+
+class SparseProtocol(MultiplexerProtocol):
+    """Class includes application level messages used by sparse nodes.
+    """
     def send_create_connector_stream(self, stream_id : str = None, stream_alias : str = None):
         """Propagates a stream to the peer.
         """
@@ -291,15 +361,6 @@ class SparseProtocol(SparseTransportProtocol):
         elif obj["op"] == "transfer_file":
             if obj["status"] == "success":
                 self.transfer_file_ok_received()
-        elif obj["op"] == "create_deployment":
-            if "status" in obj:
-                if obj["status"] == "success":
-                    self.create_deployment_ok_received()
-                else:
-                    self.logger.info("Unable to create a deployment")
-            else:
-                deployment = obj["deployment"]
-                self.create_deployment_received(deployment)
         elif obj["op"] == "data_tuple":
             stream_selector = obj["stream_selector"]
             data_tuple = obj["tuple"]
@@ -312,7 +373,7 @@ class ClusterProtocol(SparseProtocol):
     """Super class for cluster node transport protocols.
     """
     def __init__(self, node):
-        super().__init__()
+        super().__init__({ DeploymentServerProtocol(node.cluster_orchestrator) })
         self.node = node
 
         self.app_name = None
@@ -344,11 +405,6 @@ class ClusterProtocol(SparseProtocol):
             self.send_init_module_transfer_ok()
         else:
             self.send_init_module_transfer_error()
-
-    def create_deployment_received(self, deployment : Deployment):
-        self.node.cluster_orchestrator.create_deployment(deployment)
-
-        self.send_create_deployment_ok()
 
     def data_tuple_received(self, stream_selector : str, data_tuple : str):
         self.node.stream_router.tuple_received(stream_selector, data_tuple)
@@ -384,7 +440,6 @@ class ClusterClientProtocol(ClusterProtocol):
 class ClusterServerProtocol(ClusterProtocol):
     """Cluster client protocol creates an ingress connection to another cluster node.
     """
-
     def connect_downstream_received(self):
         self.node.cluster_orchestrator.add_cluster_connection(self, "ingress")
         self.send_connect_downstream_ok()

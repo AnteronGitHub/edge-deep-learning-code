@@ -7,7 +7,7 @@ import shutil
 import tempfile
 
 from ..deployment import Deployment
-from ..protocols import SparseProtocol
+from ..protocols import SparseProtocol, DeploymentClientProtocol
 
 from .helper_functions import retry_connection_until_successful
 
@@ -39,30 +39,6 @@ class ModuleUploaderProtocol(SparseProtocol):
     def connection_lost(self, exc):
         if self.on_con_lost is not None:
             self.on_con_lost.set_result(True)
-
-class DeploymentPostProtocol(SparseProtocol):
-    """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
-
-    Application is deployed in two phases. First its DAG is deployed as a dictionary, and then the application modules
-    are deployed as a ZIP archive.
-    """
-    def __init__(self, deployment : Deployment, on_con_lost : asyncio.Future, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.on_con_lost = on_con_lost
-        self.deployment = deployment
-
-    def connection_made(self, transport):
-        super().connection_made(transport)
-        self.send_create_deployment(self.deployment)
-
-    def connection_lost(self, exc):
-        if self.on_con_lost is not None:
-            self.on_con_lost.set_result(True)
-
-    def create_deployment_ok_received(self):
-        self.logger.info("Deployment '%s' created successfully.", self.deployment)
-        self.transport.close()
 
 class SparseAPIClient:
     """Sparse API client can be used to communicate with the Sparse API to upload applications.
@@ -97,7 +73,7 @@ class SparseAPIClient:
     async def post_deployment(self, deployment : Deployment):
         """Creates a new deployment to the cluster.
         """
-        await retry_connection_until_successful(lambda on_con_lost: DeploymentPostProtocol(deployment, on_con_lost), \
+        await retry_connection_until_successful(lambda on_con_lost: DeploymentClientProtocol(deployment, on_con_lost), \
                                                 self.api_host, \
                                                 self.api_port, \
                                                 self.logger)
