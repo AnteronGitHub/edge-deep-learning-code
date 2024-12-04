@@ -1,6 +1,6 @@
 """This module implements stream routing functionality in the cluster.
 """
-from .node import SparseSlice
+from .sparse_slice import SparseSlice
 from .protocols import SparseProtocol
 from .runtime import SparseRuntime
 from .stream_api import SparseStream

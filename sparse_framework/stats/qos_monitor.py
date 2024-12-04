@@ -2,8 +2,8 @@
 """
 from time import time
 
-from ..runtime import StreamOperator
-from ..node import SparseSlice
+from ..runtime.operator import StreamOperator
+from ..sparse_slice import SparseSlice
 
 class OperatorRuntimeStatisticsRecord:
     """Operator runtime statistics record tracks tuple processing latency for a given operator.

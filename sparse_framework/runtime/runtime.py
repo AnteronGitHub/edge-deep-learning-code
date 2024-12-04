@@ -3,7 +3,7 @@
 import asyncio
 
 from ..module_repo import ModuleRepository, OperatorNotFoundError
-from ..node import SparseSlice
+from ..sparse_slice import SparseSlice
 from ..stats import QoSMonitor
 
 from .operator import StreamOperator

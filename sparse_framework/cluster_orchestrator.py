@@ -2,9 +2,9 @@
 """
 from .deployment import Deployment
 from .module_repo import SparseModule
-from .node import SparseSlice
 from .protocols import SparseProtocol
 from .runtime import SparseRuntime
+from .sparse_slice import SparseSlice
 from .stream_api import SparseStream
 
 class ClusterConnection:
