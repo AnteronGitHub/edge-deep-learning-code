@@ -9,6 +9,7 @@ from .sparse_slice import SparseSlice
 class SparseModule:
     """A sparse app is a Python module that provides a set of sources, operators, and sinks.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, name : str, zip_path : str):
         self.name = name
         self.zip_path = zip_path

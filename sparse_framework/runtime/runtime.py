@@ -73,6 +73,7 @@ class SparseRuntime(SparseSlice):
         """Callback for when a result has been processed in the runtime, and the result has been transferred back to
         host memory.
         """
+        # pylint: disable=too-many-arguments
         self.qos_monitor.operator_result_received(operator, source, sequence_no)
         output.emit(output_tuple)
 

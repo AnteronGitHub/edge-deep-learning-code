@@ -21,7 +21,7 @@ class SparseNode:
     Nodes maintain the task loop for its components. Each functionality, including the runtime is implemented by slices
     that the node houses.
     """
-
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, node_id : str = str(uuid.uuid4()), log_level : int = logging.INFO):
         self.node_id = node_id
 

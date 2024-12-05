@@ -11,6 +11,7 @@ __all__ = ["SparseStream"]
 class SparseStream:
     """Sparse stream is an abstraction for an unbounded set of data tuples.
     """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, stream_id : str = None, stream_alias : str = None, runtime = None):
         self.logger = logging.getLogger("sparse")
 

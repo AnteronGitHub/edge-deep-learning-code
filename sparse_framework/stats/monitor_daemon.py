@@ -10,6 +10,7 @@ from .file_logger import FileLogger
 class MonitorDaemon:
     """This class implements a daemon for logging monitor records asynchronously.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, queue):
         self.logger = logging.getLogger("sparse")
         self.executor = ThreadPoolExecutor(max_workers=1)

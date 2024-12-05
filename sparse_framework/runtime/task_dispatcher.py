@@ -11,6 +11,7 @@ class TaskDispatcher:
     Currently, only a single operator is executed at once. While it may be preferable to do so in order to consolidate
     hardware (mainly CPU) resources, more complicated schedulers could also be implemented in the future.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, task_queue : asyncio.Queue):
         self.logger = logging.getLogger("TaskDispatcher")
         self.executor = ThreadPoolExecutor()

@@ -9,6 +9,7 @@ class SparseSlice:
     Slices are analogious to services in service oriented architecture. Each slice provides a coherent feature for a
     node. Additionally, slices may utilize features from other slices to provide higher-level features.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, config):
         self.logger = logging.getLogger("sparse")
         self.config = config
