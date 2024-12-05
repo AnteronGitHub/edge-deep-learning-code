@@ -302,6 +302,68 @@ class ParentNodeProtocol(SparseTransportProtocol):
         """
         self.send_payload({"op": "connect_downstream", "status": "success"})
 
+class StreamPublishProtocol(SparseTransportProtocol):
+    """Stream publish protocol receives subscriptions to streams, and publishes new tuples to the subscribed nodes.
+    """
+    def __init__(self, parent_protocol, stream_router):
+        super().__init__()
+        self.parent_protocol = parent_protocol
+        self.stream_router = stream_router
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "subscribe" and "status" not in obj:
+            stream_alias = obj["stream_alias"]
+            self.subscribe_received(stream_alias)
+
+    def subscribe_received(self, stream_alias : str):
+        """Callback triggered when a stream subscription is received.
+        """
+        self.stream_router.subscribe(stream_alias, self.parent_protocol)
+        self.send_subscribe_ok(stream_alias)
+
+    def send_subscribe_ok(self, stream_alias : str):
+        """Replies that a requested stream subscription was successful.
+        """
+        self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "success"})
+
+    def send_subscribe_error(self, stream_alias : str):
+        """Replies that a requested stream subscription failed.
+        """
+        self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "error"})
+
+class StreamSubscribeProtocol(SparseTransportProtocol):
+    """Stream subscribe protocol subscribes to streams in other cluster nodes to new tuples.
+    """
+    def send_subscribe(self, stream_alias : str):
+        """Initiates a stream subscription to a given stream alias.
+        """
+        self.send_payload({"op": "subscribe", "stream_alias": stream_alias})
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "subscribe" and "status" in obj:
+            stream_alias = obj["stream_alias"]
+            if obj["status"] == "success":
+                self.subscribe_ok_received(stream_alias)
+            else:
+                self.subscribe_error_received(stream_alias)
+        elif obj["op"] == "data_tuple":
+            stream_selector = obj["stream_selector"]
+            data_tuple = obj["tuple"]
+
+            self.data_tuple_received(stream_selector, data_tuple)
+
+    def subscribe_ok_received(self, stream_alias : str):
+        """Callback for when a requested stream has been acknowledged to be successful.
+        """
+
+    def subscribe_error_received(self, stream_alias : str):
+        """Callback for when a requested stream has been failed.
+        """
+
+    def data_tuple_received(self, stream_selector : str, data_tuple : str):
+        """Callback for when a new data tuple for a stream is received.
+        """
+
 class SparseProtocol(MultiplexerProtocol):
     """Class includes application level messages used by sparse nodes.
     """
@@ -328,41 +390,10 @@ class SparseProtocol(MultiplexerProtocol):
         """Callback triggered when a successful stream reply is received.
         """
 
-    def send_subscribe(self, stream_alias : str):
-        """Initiates a stream subscription to a given stream alias.
-        """
-        self.send_payload({"op": "subscribe", "stream_alias": stream_alias})
-
-    def subscribe_received(self, stream_alias : str):
-        """Callback triggered when a stream subscription is received.
-        """
-
-    def send_subscribe_ok(self, stream_alias : str):
-        """Replies that a requested stream subscription was successful.
-        """
-        self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "success"})
-
-    def subscribe_ok_received(self, stream_alias : str):
-        """Callback for when a requested stream has been acknowledged to be successful.
-        """
-
-    def send_subscribe_error(self, stream_alias : str):
-        """Replies that a requested stream subscription failed.
-        """
-        self.send_payload({"op": "subscribe", "stream_alias": stream_alias, "status": "error"})
-
-    def subscribe_error_received(self, stream_alias : str):
-        """Callback for when a requested stream has been failed.
-        """
-
     def send_data_tuple(self, stream, data_tuple):
         """Sends a new data tuple for a stream.
         """
         self.send_payload({"op": "data_tuple", "stream_selector": str(stream), "tuple": data_tuple })
-
-    def data_tuple_received(self, stream_selector : str, data_tuple : str):
-        """Callback for when a new data tuple for a stream is received.
-        """
 
     def send_init_module_transfer(self, module_name : str):
         """Initiates a module transfer to a peer.
@@ -398,15 +429,6 @@ class SparseProtocol(MultiplexerProtocol):
                 stream_alias = obj["stream_alias"] if "stream_alias" in obj.keys() else None
 
                 self.create_connector_stream_received(stream_id, stream_alias)
-        elif obj["op"] == "subscribe":
-            stream_alias = obj["stream_alias"]
-            if "status" in obj:
-                if obj["status"] == "success":
-                    self.subscribe_ok_received(stream_alias)
-                else:
-                    self.subscribe_error_received(stream_alias)
-            else:
-                self.subscribe_received(stream_alias)
         elif obj["op"] == "init_module_transfer" and "status" in obj:
             if obj["status"] == "accepted":
                 self.init_module_transfer_ok_received()
@@ -415,11 +437,6 @@ class SparseProtocol(MultiplexerProtocol):
         elif obj["op"] == "transfer_file":
             if obj["status"] == "success":
                 self.transfer_file_ok_received()
-        elif obj["op"] == "data_tuple":
-            stream_selector = obj["stream_selector"]
-            data_tuple = obj["tuple"]
-
-            self.data_tuple_received(stream_selector, data_tuple)
         else:
             super().object_received(obj)
 
@@ -452,7 +469,19 @@ class ClusterProtocol(SparseProtocol):
     def init_module_transfer_error_received(self):
         self.logger.error("Module transfer initialization failed")
 
+    # TODO: Use stream subscribe protocol instead
+    def object_received(self, obj : dict):
+        if obj["op"] == "data_tuple":
+            stream_selector = obj["stream_selector"]
+            data_tuple = obj["tuple"]
+
+            self.data_tuple_received(stream_selector, data_tuple)
+        else:
+            super().object_received(obj)
+
     def data_tuple_received(self, stream_selector : str, data_tuple : str):
+        """Callback for when a new data tuple for a stream is received.
+        """
         self.node.stream_router.tuple_received(stream_selector, data_tuple)
 
 class ClusterClientProtocol(ClusterProtocol):
@@ -476,13 +505,10 @@ class ClusterServerProtocol(ClusterProtocol):
     def __init__(self, node, *args, **kwargs):
         super().__init__(node, *args, **kwargs)
         self.protocols.add(ParentNodeProtocol(self, node.cluster_orchestrator))
+        self.protocols.add(StreamPublishProtocol(self, node.stream_router))
 
     def create_connector_stream_received(self, stream_id : str = None, stream_alias : str = None):
         stream = self.node.stream_router.create_connector_stream(self, stream_id, stream_alias)
         self.node.cluster_orchestrator.distribute_stream(self, stream)
 
         self.send_create_connector_stream_ok(stream.stream_id, stream.stream_alias)
-
-    def subscribe_received(self, stream_alias : str):
-        self.node.stream_router.subscribe(stream_alias, self)
-        self.send_subscribe_ok(stream_alias)

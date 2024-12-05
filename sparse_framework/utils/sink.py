@@ -2,11 +2,11 @@
 """
 import asyncio
 
-from ..protocols import SparseProtocol
+from ..protocols import StreamSubscribeProtocol
 
 from .helper_functions import retry_connection_until_successful
 
-class SinkProtocol(SparseProtocol):
+class SinkProtocol(StreamSubscribeProtocol):
     """Sink protocol connects to a cluster end point and subscribes to a stream.
     """
     def __init__(self, stream_alias : str, on_tuple_received, on_con_lost : asyncio.Future):
