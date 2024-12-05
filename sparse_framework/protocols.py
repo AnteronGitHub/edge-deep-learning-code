@@ -256,6 +256,29 @@ class ModuleReceiverProtocol(SparseTransportProtocol):
         """
         self.send_payload({"op": "transfer_file", "status": "success"})
 
+class ChildNodeProtocol(SparseTransportProtocol):
+    """Child node creates an egress connection to another cluster node.
+    """
+    def __init__(self, parent_protocol, cluster_orchestrator):
+        super().__init__()
+        self.parent_protocol = parent_protocol
+        self.cluster_orchestrator = cluster_orchestrator
+
+    def send_connect_downstream(self):
+        """Initiates a downstream connection.
+        """
+        self.send_payload({"op": "connect_downstream"})
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "connect_downstream" and "status" in obj:
+            if obj["status"] == "success":
+                self.connect_downstream_ok_received()
+
+    def connect_downstream_ok_received(self):
+        """Callback for when a downstream connection has been acknowledged successful.
+        """
+        self.cluster_orchestrator.add_cluster_connection(self.parent_protocol, direction="egress")
+
 class SparseProtocol(MultiplexerProtocol):
     """Class includes application level messages used by sparse nodes.
     """
@@ -335,11 +358,6 @@ class SparseProtocol(MultiplexerProtocol):
         """Callback for when a file transfer has been acknowledged by the peer.
         """
 
-    def send_connect_downstream(self):
-        """Initiates a downstream connection.
-        """
-        self.send_payload({"op": "connect_downstream"})
-
     def connect_downstream_received(self):
         """Callback for when a new downstream connection request has been received.
         """
@@ -349,21 +367,11 @@ class SparseProtocol(MultiplexerProtocol):
         """
         self.send_payload({"op": "connect_downstream", "status": "success"})
 
-    def connect_downstream_ok_received(self):
-        """Callback for when a downstream connection has been acknowledged successful.
-        """
-
     def object_received(self, obj : dict):
         """Callback for handling the received messages.
         """
-        if obj["op"] == "connect_downstream":
-            if "status" in obj:
-                if obj["status"] == "success":
-                    self.connect_downstream_ok_received()
-                else:
-                    pass
-            else:
-                self.connect_downstream_received()
+        if obj["op"] == "connect_downstream" and "status" not in obj:
+            self.connect_downstream_received()
         elif obj["op"] == "create_connector_stream":
             if "status" in obj:
                 if obj["status"] == "success":
@@ -438,18 +446,17 @@ class ClusterProtocol(SparseProtocol):
 class ClusterClientProtocol(ClusterProtocol):
     """Cluster client protocol creates an egress connection to another cluster node.
     """
-    def __init__(self, on_con_lost : asyncio.Future, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, on_con_lost : asyncio.Future, node, *args, **kwargs):
+        super().__init__(node, *args, **kwargs)
+        self.child_node_protocol = ChildNodeProtocol(self, node.cluster_orchestrator)
+        self.protocols.add(self.child_node_protocol)
 
         self.on_con_lost = on_con_lost
 
     def connection_made(self, transport):
         super().connection_made(transport)
 
-        self.send_connect_downstream()
-
-    def connect_downstream_ok_received(self):
-        self.node.cluster_orchestrator.add_cluster_connection(self, direction="egress")
+        self.child_node_protocol.send_connect_downstream()
 
 class ClusterServerProtocol(ClusterProtocol):
     """Cluster client protocol creates an ingress connection to another cluster node.
