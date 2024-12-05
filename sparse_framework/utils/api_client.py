@@ -7,11 +7,12 @@ import shutil
 import tempfile
 
 from ..deployment import Deployment
-from ..protocols import SparseProtocol, DeploymentClientProtocol
+from ..module_repo import SparseModule
+from ..protocols import ModuleSenderProtocol, DeploymentClientProtocol
 
 from .helper_functions import retry_connection_until_successful
 
-class ModuleUploaderProtocol(SparseProtocol):
+class ModuleUploaderProtocol(ModuleSenderProtocol):
     """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
 
     Application is deployed in two phases. First its DAG is deployed as a dictionary, and then the application modules
@@ -27,10 +28,7 @@ class ModuleUploaderProtocol(SparseProtocol):
     def connection_made(self, transport):
         super().connection_made(transport)
 
-        self.send_init_module_transfer(self.module_name)
-
-    def init_module_transfer_ok_received(self):
-        self.send_file(self.archive_path)
+        self.transfer_module(SparseModule(self.module_name, self.archive_path))
 
     def transfer_file_ok_received(self):
         self.logger.info("Module '%s' uploaded successfully.", self.module_name)

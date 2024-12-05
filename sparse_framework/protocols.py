@@ -256,6 +256,50 @@ class ModuleReceiverProtocol(SparseTransportProtocol):
         """
         self.send_payload({"op": "transfer_file", "status": "success"})
 
+class ModuleSenderProtocol(SparseTransportProtocol):
+    """Module sender transfers a Sparse module to another node.
+    """
+    def __init__(self):
+        super().__init__()
+
+        self.transferring_module = None
+
+    def transfer_module(self, module : SparseModule):
+        """Starts a module transfer for the specified locally available module.
+        """
+        self.transferring_module = module
+
+        self.send_init_module_transfer(self.transferring_module.name)
+
+    def send_init_module_transfer(self, module_name : str):
+        """Initiates a module transfer to a peer.
+        """
+        self.send_payload({ "op": "init_module_transfer", "module_name": module_name })
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "init_module_transfer" and "status" in obj:
+            if obj["status"] == "accepted":
+                self.init_module_transfer_ok_received()
+            else:
+                self.init_module_transfer_error_received()
+        elif obj["op"] == "transfer_file" and "status" in obj:
+            if obj["status"] == "success":
+                self.transfer_file_ok_received()
+
+    def init_module_transfer_ok_received(self):
+        """Callback for when a module transfer has been acknowledged to have succeeded by the peer.
+        """
+        self.send_file(self.transferring_module.zip_path)
+
+    def init_module_transfer_error_received(self):
+        """Callback for when a module transfer has been acknowledged to be failed by the peer.
+        """
+        self.logger.error("Module transfer initialization failed")
+
+    def transfer_file_ok_received(self):
+        """Callback for when a file transfer has been acknowledged by the peer.
+        """
+
 class ChildNodeProtocol(SparseTransportProtocol):
     """Child node creates an egress connection to another cluster node.
     """
@@ -395,23 +439,6 @@ class SparseProtocol(MultiplexerProtocol):
         """
         self.send_payload({"op": "data_tuple", "stream_selector": str(stream), "tuple": data_tuple })
 
-    def send_init_module_transfer(self, module_name : str):
-        """Initiates a module transfer to a peer.
-        """
-        self.send_payload({ "op": "init_module_transfer", "module_name": module_name })
-
-    def init_module_transfer_ok_received(self):
-        """Callback for when a module transfer has been acknowledged to have succeeded by the peer.
-        """
-
-    def init_module_transfer_error_received(self):
-        """Callback for when a module transfer has been acknowledged to be failed by the peer.
-        """
-
-    def transfer_file_ok_received(self):
-        """Callback for when a file transfer has been acknowledged by the peer.
-        """
-
     def object_received(self, obj : dict):
         """Callback for handling the received messages.
         """
@@ -429,14 +456,6 @@ class SparseProtocol(MultiplexerProtocol):
                 stream_alias = obj["stream_alias"] if "stream_alias" in obj.keys() else None
 
                 self.create_connector_stream_received(stream_id, stream_alias)
-        elif obj["op"] == "init_module_transfer" and "status" in obj:
-            if obj["status"] == "accepted":
-                self.init_module_transfer_ok_received()
-            else:
-                self.init_module_transfer_error_received()
-        elif obj["op"] == "transfer_file":
-            if obj["status"] == "success":
-                self.transfer_file_ok_received()
         else:
             super().object_received(obj)
 
@@ -450,24 +469,9 @@ class ClusterProtocol(SparseProtocol):
 
         self.app_dag = None
 
-        self.transferring_module = None
-
     def connection_lost(self, exc):
         self.node.cluster_orchestrator.remove_cluster_connection(self.transport)
         self.logger.debug("Connection %s disconnected.", self)
-
-    def transfer_module(self, module : SparseModule):
-        """Starts a module transfer for the specified locally available module.
-        """
-        self.transferring_module = module
-
-        self.send_init_module_transfer(self.transferring_module.name)
-
-    def init_module_transfer_ok_received(self):
-        self.send_file(self.transferring_module.zip_path)
-
-    def init_module_transfer_error_received(self):
-        self.logger.error("Module transfer initialization failed")
 
     # TODO: Use stream subscribe protocol instead
     def object_received(self, obj : dict):
