@@ -132,6 +132,10 @@ class MultiplexerProtocol(SparseTransportProtocol):
         for protocol in self.protocols:
             protocol.object_received(obj)
 
+    def file_received(self, data : bytes):
+        for protocol in self.protocols:
+            protocol.file_received(data)
+
     def connection_lost(self, exc):
         for protocol in self.protocols:
             protocol.connection_lost(exc)
@@ -191,12 +195,66 @@ class DeploymentClientProtocol(SparseTransportProtocol):
                 self.logger.info("Unable to create a deployment")
 
     def create_deployment_ok_received(self):
+        """Called when a deployment has been acknowledged.
+        """
         self.logger.info("Deployment '%s' created successfully.", self.deployment)
         self.transport.close()
 
     def connection_lost(self, exc):
         if self.on_con_lost is not None:
             self.on_con_lost.set_result(True)
+
+class ModuleReceiverProtocol(SparseTransportProtocol):
+    """Module receiver receives a Sparse module from another node.
+    """
+    def __init__(self, module_repo, cluster_orchestrator):
+        super().__init__()
+        self.module_repo = module_repo
+        self.cluster_orchestrator = cluster_orchestrator
+        self.receiving_module_name = None
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "init_module_transfer" and "status" not in obj:
+            module_name = obj["module_name"]
+
+            self.init_module_transfer_received(module_name)
+
+    def init_module_transfer_received(self, module_name : str):
+        """Callback for when a module transfer is received.
+        """
+        if self.receiving_module_name is None:
+            self.receiving_module_name = module_name
+            self.send_init_module_transfer_ok()
+        else:
+            self.send_init_module_transfer_error()
+
+
+    def send_init_module_transfer_ok(self):
+        """Replies that a requested module transfer has been initialized successfully.
+        """
+        self.send_payload({"op": "init_module_transfer", "status": "accepted"})
+
+    def send_init_module_transfer_error(self):
+        """Replies that a requested module transfer has failed to initialize.
+        """
+        self.send_payload({"op": "init_module_transfer", "status": "rejected"})
+
+    def file_received(self, data : bytes):
+        app_archive_path = f"/tmp/{self.receiving_module_name}.zip"
+        with open(app_archive_path, "wb") as f:
+            f.write(data)
+
+        self.logger.info("Received module '%s' from %s", self.receiving_module_name, self)
+        module = self.module_repo.add_app_module(self.receiving_module_name, app_archive_path)
+        self.cluster_orchestrator.distribute_module(self, module)
+        self.receiving_module_name = None
+
+        self.send_transfer_file_ok()
+
+    def send_transfer_file_ok(self):
+        """Replies that a file has been transferred successfully.
+        """
+        self.send_payload({"op": "transfer_file", "status": "success"})
 
 class SparseProtocol(MultiplexerProtocol):
     """Class includes application level messages used by sparse nodes.
@@ -265,32 +323,13 @@ class SparseProtocol(MultiplexerProtocol):
         """
         self.send_payload({ "op": "init_module_transfer", "module_name": module_name })
 
-    def init_module_transfer_received(self, module_name : str):
-        """Callback for when a module transfer is received.
-        """
-
-    def send_init_module_transfer_ok(self):
-        """Replies that a requested module transfer has been initialized successfully.
-        """
-        self.send_payload({"op": "init_module_transfer", "status": "accepted"})
-
     def init_module_transfer_ok_received(self):
         """Callback for when a module transfer has been acknowledged to have succeeded by the peer.
         """
 
-    def send_init_module_transfer_error(self):
-        """Replies that a requested module transfer has failed to initialize.
-        """
-        self.send_payload({"op": "init_module_transfer", "status": "rejected"})
-
     def init_module_transfer_error_received(self):
         """Callback for when a module transfer has been acknowledged to be failed by the peer.
         """
-
-    def send_transfer_file_ok(self):
-        """Replies that a file has been transferred successfully.
-        """
-        self.send_payload({"op": "transfer_file", "status": "success"})
 
     def transfer_file_ok_received(self):
         """Callback for when a file transfer has been acknowledged by the peer.
@@ -348,16 +387,11 @@ class SparseProtocol(MultiplexerProtocol):
                     self.subscribe_error_received(stream_alias)
             else:
                 self.subscribe_received(stream_alias)
-        elif obj["op"] == "init_module_transfer":
-            if "status" in obj:
-                if obj["status"] == "accepted":
-                    self.init_module_transfer_ok_received()
-                else:
-                    self.init_module_transfer_error_received()
+        elif obj["op"] == "init_module_transfer" and "status" in obj:
+            if obj["status"] == "accepted":
+                self.init_module_transfer_ok_received()
             else:
-                module_name = obj["module_name"]
-
-                self.init_module_transfer_received(module_name)
+                self.init_module_transfer_error_received()
         elif obj["op"] == "transfer_file":
             if obj["status"] == "success":
                 self.transfer_file_ok_received()
@@ -373,14 +407,13 @@ class ClusterProtocol(SparseProtocol):
     """Super class for cluster node transport protocols.
     """
     def __init__(self, node):
-        super().__init__({ DeploymentServerProtocol(node.cluster_orchestrator) })
+        super().__init__({ DeploymentServerProtocol(node.cluster_orchestrator),
+                           ModuleReceiverProtocol(node.module_repo, node.cluster_orchestrator) })
         self.node = node
 
-        self.app_name = None
         self.app_dag = None
 
         self.transferring_module = None
-        self.receiving_module_name = None
 
     def connection_lost(self, exc):
         self.node.cluster_orchestrator.remove_cluster_connection(self.transport)
@@ -399,27 +432,8 @@ class ClusterProtocol(SparseProtocol):
     def init_module_transfer_error_received(self):
         self.logger.error("Module transfer initialization failed")
 
-    def init_module_transfer_received(self, module_name : str):
-        if self.receiving_module_name is None:
-            self.receiving_module_name = module_name
-            self.send_init_module_transfer_ok()
-        else:
-            self.send_init_module_transfer_error()
-
     def data_tuple_received(self, stream_selector : str, data_tuple : str):
         self.node.stream_router.tuple_received(stream_selector, data_tuple)
-
-    def file_received(self, data : bytes):
-        app_archive_path = f"/tmp/{self.app_name}.zip"
-        with open(app_archive_path, "wb") as f:
-            f.write(data)
-
-        self.logger.info("Received module '%s' from %s", self.receiving_module_name, self)
-        module = self.node.module_repo.add_app_module(self.receiving_module_name, app_archive_path)
-        self.node.cluster_orchestrator.distribute_module(self, module)
-        self.receiving_module_name = None
-
-        self.send_transfer_file_ok()
 
 class ClusterClientProtocol(ClusterProtocol):
     """Cluster client protocol creates an egress connection to another cluster node.
