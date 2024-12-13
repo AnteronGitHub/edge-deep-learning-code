@@ -303,9 +303,9 @@ class ModuleSenderProtocol(SparseTransportProtocol):
 class ChildNodeProtocol(SparseTransportProtocol):
     """Child node creates an egress connection to another cluster node.
     """
-    def __init__(self, parent_protocol, cluster_orchestrator):
+    def __init__(self, cluster_protocol, cluster_orchestrator):
         super().__init__()
-        self.parent_protocol = parent_protocol
+        self.cluster_protocol = cluster_protocol
         self.cluster_orchestrator = cluster_orchestrator
 
     def send_connect_downstream(self):
@@ -321,14 +321,14 @@ class ChildNodeProtocol(SparseTransportProtocol):
     def connect_downstream_ok_received(self):
         """Callback for when a downstream connection has been acknowledged successful.
         """
-        self.cluster_orchestrator.add_cluster_connection(self.parent_protocol, direction="egress")
+        self.cluster_orchestrator.add_cluster_connection(self.cluster_protocol, direction="egress")
 
 class ParentNodeProtocol(SparseTransportProtocol):
     """Parent node receives an ingress connection from another cluster node.
     """
-    def __init__(self, parent_protocol, cluster_orchestrator):
+    def __init__(self, cluster_protocol, cluster_orchestrator):
         super().__init__()
-        self.parent_protocol = parent_protocol
+        self.cluster_protocol = cluster_protocol
         self.cluster_orchestrator = cluster_orchestrator
 
     def object_received(self, obj : dict):
@@ -338,7 +338,7 @@ class ParentNodeProtocol(SparseTransportProtocol):
     def connect_downstream_received(self):
         """Callback for when a new downstream connection request has been received.
         """
-        self.cluster_orchestrator.add_cluster_connection(self.parent_protocol, "ingress")
+        self.cluster_orchestrator.add_cluster_connection(self.cluster_protocol, "ingress")
         self.send_connect_downstream_ok()
 
     def send_connect_downstream_ok(self):
@@ -349,9 +349,9 @@ class ParentNodeProtocol(SparseTransportProtocol):
 class StreamPublishProtocol(SparseTransportProtocol):
     """Stream publish protocol receives subscriptions to streams, and publishes new tuples to the subscribed nodes.
     """
-    def __init__(self, parent_protocol, stream_router):
+    def __init__(self, stream_data_sender_protocol, stream_router):
         super().__init__()
-        self.parent_protocol = parent_protocol
+        self.stream_data_sender_protocol = stream_data_sender_protocol
         self.stream_router = stream_router
 
     def object_received(self, obj : dict):
@@ -362,7 +362,7 @@ class StreamPublishProtocol(SparseTransportProtocol):
     def subscribe_received(self, stream_alias : str):
         """Callback triggered when a stream subscription is received.
         """
-        self.stream_router.subscribe(stream_alias, self.parent_protocol)
+        self.stream_router.subscribe(stream_alias, self.stream_data_sender_protocol)
         self.send_subscribe_ok(stream_alias)
 
     def send_subscribe_ok(self, stream_alias : str):
@@ -450,29 +450,7 @@ class StreamReceiverProtocol(SparseTransportProtocol):
                            "stream_id": stream_id,
                            "stream_alias" : stream_alias})
 
-class StreamDataSenderProtocol(SparseTransportProtocol):
-    """Stream data protocol transmits new tuples for a stream to subscribed nodes.
-    """
-    def send_data_tuple(self, stream, data_tuple):
-        """Sends a new data tuple for a stream.
-        """
-        self.logger.debug("Sending tuple for stream %s to peer %s", stream, self)
-        self.send_payload({"op": "data_tuple", "stream_selector": str(stream), "tuple": data_tuple })
-
-class StreamDataReceiverProtocol(SparseTransportProtocol):
-    """Stream data protocol transmits new tuples for a stream to subscribed nodes.
-    """
-    def __init__(self, on_data_tuple_received = None):
-        super().__init__()
-        self.on_data_tuple_received = on_data_tuple_received
-
-    def object_received(self, obj : dict):
-        if obj["op"] == "data_tuple":
-            stream_selector = obj["stream_selector"]
-            data_tuple = obj["tuple"]
-
-            if self.on_data_tuple_received is not None:
-                self.on_data_tuple_received(stream_selector, data_tuple)
+from .stream_api import StreamDataReceiverProtocol, StreamDataSenderProtocol
 
 class ClusterProtocol(MultiplexerProtocol):
     """Super class for cluster node transport protocols.
@@ -487,7 +465,7 @@ class ClusterProtocol(MultiplexerProtocol):
                            ModuleReceiverProtocol(node.module_repo, node.cluster_orchestrator),
                            StreamDataReceiverProtocol(self.node.stream_router.tuple_received),
                            StreamReceiverProtocol(self.create_connector_stream_received),
-                           StreamPublishProtocol(self, node.stream_router),
+                           StreamPublishProtocol(self.stream_data_sender_protocol, node.stream_router),
                            self.module_sender_protocol,
                            self.stream_migrator_protocol,
                            self.stream_data_sender_protocol })
@@ -501,11 +479,6 @@ class ClusterProtocol(MultiplexerProtocol):
         """Migrates stream to peer.
         """
         self.stream_migrator_protocol.send_create_connector_stream(stream_id, stream_alias)
-
-    def send_data_tuple(self, stream, data_tuple):
-        """Send new tuple for a stream to peer.
-        """
-        self.stream_data_sender_protocol.send_data_tuple(stream, data_tuple)
 
     def create_connector_stream_received(self, stream_id : str = None, stream_alias : str = None):
         """Callback triggered when a stream has been received.

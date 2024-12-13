@@ -36,7 +36,7 @@ class ClusterConnection:
         self.protocol.send_create_connector_stream(stream.stream_id, stream.stream_alias)
 
         # TODO: Subscribe to streams separately
-        stream.subscribe(self.protocol)
+        stream.subscribe(self.protocol.stream_data_sender_protocol)
 
 class ClusterOrchestrator(SparseSlice):
     """Cluster orchestrator distributes modules and migrates operators within the cluster.

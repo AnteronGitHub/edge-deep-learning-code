@@ -3,7 +3,7 @@
 from .sparse_slice import SparseSlice
 from .protocols import ClusterProtocol
 from .runtime import SparseRuntime
-from .stream_api import SparseStream
+from .stream_api import StreamDataSenderProtocol, SparseStream
 
 class StreamRouter(SparseSlice):
     """Stream router then ensures that streams are routed according to application specifications. It receives
@@ -42,16 +42,16 @@ class StreamRouter(SparseSlice):
                 return
         self.logger.warning("Received data for stream %s without a connector", stream_selector)
 
-    def subscribe(self, stream_alias : str, protocol : ClusterProtocol):
+    def subscribe(self, stream_alias : str, stream_data_sender_protocol : StreamDataSenderProtocol):
         """Subscribes a protocol to receive tuples in a data stream.
         """
         for stream in self.streams:
             if stream.matches_selector(stream_alias):
-                stream.subscribe(protocol)
+                stream.subscribe(stream_data_sender_protocol)
                 return
 
         stream = self.get_stream(stream_alias=stream_alias)
-        stream.subscribe(protocol)
+        stream.subscribe(stream_data_sender_protocol)
 
     def connect_to_operators(self, stream : SparseStream, operator_names : set):
         """Adds destinations to a stream.

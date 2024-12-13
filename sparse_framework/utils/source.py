@@ -4,8 +4,8 @@ import asyncio
 import uuid
 import logging
 
-from ..protocols import MultiplexerProtocol, StreamDataSenderProtocol, StreamMigratorProtocol
-from ..stream_api import SparseStream
+from ..protocols import MultiplexerProtocol, StreamMigratorProtocol
+from ..stream_api import StreamDataSenderProtocol, SparseStream
 
 class SourceProtocol(MultiplexerProtocol):
     """Source protocol connects to a cluster end point and receives a stream id that can be used to transmit data
@@ -27,13 +27,13 @@ class SourceProtocol(MultiplexerProtocol):
         """Callback for when a stream has been migrates succesfully
         """
         stream = SparseStream(stream_id, stream_alias)
-        stream.subscribe(self)
+        stream.subscribe(self.data_protocol)
         self.on_stream_initialized.set_result(stream)
 
     def send_data_tuple(self, stream, data_tuple):
         """Sends new data tuple for a stream.
         """
-        self.data_protocol.send_data_tuple(stream, data_tuple)
+        self.data_protocol.send_data_tuple(str(stream), data_tuple)
 
 class SparseSource:
     """Implementation of a simulated Sparse cluster data source. A Sparse source connects to a cluster end point and

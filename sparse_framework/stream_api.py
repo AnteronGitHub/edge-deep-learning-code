@@ -3,10 +3,34 @@
 import uuid
 import logging
 
-from .protocols import ClusterProtocol
+from .protocols import SparseTransportProtocol
 from .runtime.operator import StreamOperator
 
-__all__ = ["SparseStream"]
+__all__ = ["SparseStream", "StreamDataReceiverProtocol", "StreamDataSenderProtocol"]
+
+class StreamDataReceiverProtocol(SparseTransportProtocol):
+    """Stream data protocol transmits new tuples for a stream to subscribed nodes.
+    """
+    def __init__(self, on_data_tuple_received = None):
+        super().__init__()
+        self.on_data_tuple_received = on_data_tuple_received
+
+    def object_received(self, obj : dict):
+        if obj["op"] == "data_tuple":
+            stream_selector = obj["stream_selector"]
+            data_tuple = obj["tuple"]
+
+            if self.on_data_tuple_received is not None:
+                self.on_data_tuple_received(stream_selector, data_tuple)
+
+class StreamDataSenderProtocol(SparseTransportProtocol):
+    """Stream data protocol transmits new tuples for a stream to subscribed nodes.
+    """
+    def send_data_tuple(self, stream_selector : str, data_tuple):
+        """Sends a new data tuple for a stream.
+        """
+        self.logger.debug("Sending tuple for stream %s to peer %s", stream_selector, self)
+        self.send_payload({"op": "data_tuple", "stream_selector": stream_selector, "tuple": data_tuple })
 
 class SparseStream:
     """Sparse stream is an abstraction for an unbounded set of data tuples.
@@ -32,7 +56,7 @@ class SparseStream:
         """
         return stream_selector in (self.stream_alias, self.stream_id)
 
-    def subscribe(self, protocol : ClusterProtocol):
+    def subscribe(self, protocol : StreamDataSenderProtocol):
         """Subscribes a protocol to receive stream tuples.
         """
         self.protocols.add(protocol)
@@ -63,7 +87,7 @@ class SparseStream:
             self.runtime.call_operator(operator, self, data_tuple, output_stream)
 
         for protocol in self.protocols:
-            protocol.send_data_tuple(self, data_tuple)
+            protocol.send_data_tuple(str(self), data_tuple)
 
         for stream in self.streams:
             stream.emit(data_tuple)
