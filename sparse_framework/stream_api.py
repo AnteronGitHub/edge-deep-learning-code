@@ -3,7 +3,7 @@
 import uuid
 import logging
 
-from .protocols import SparseProtocol
+from .protocols import ClusterProtocol
 from .runtime.operator import StreamOperator
 
 __all__ = ["SparseStream"]
@@ -32,7 +32,7 @@ class SparseStream:
         """
         return stream_selector in (self.stream_alias, self.stream_id)
 
-    def subscribe(self, protocol : SparseProtocol):
+    def subscribe(self, protocol : ClusterProtocol):
         """Subscribes a protocol to receive stream tuples.
         """
         self.protocols.add(protocol)

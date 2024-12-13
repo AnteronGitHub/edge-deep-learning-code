@@ -2,7 +2,7 @@
 """
 from .deployment import Deployment
 from .module_repo import SparseModule
-from .protocols import SparseProtocol
+from .protocols import ClusterProtocol
 from .runtime import SparseRuntime
 from .sparse_slice import SparseSlice
 from .stream_api import SparseStream
@@ -10,12 +10,13 @@ from .stream_api import SparseStream
 class ClusterConnection:
     """Data class for maintaining data about connected cluster nodes.
     """
-    protocol : SparseProtocol
+    protocol : ClusterProtocol
     direction : str
 
-    def __init__(self, protocol : SparseProtocol, direction : str):
+    def __init__(self, protocol : ClusterProtocol, direction : str, logger):
         self.protocol = protocol
         self.direction = direction
+        self.logger = logger
 
     def transfer_module(self, app : SparseModule):
         """Transfers a module to the connection peer.
@@ -26,6 +27,16 @@ class ClusterConnection:
         """Creates a deployment to the connection peer.
         """
         self.protocol.create_deployment(app_dag)
+
+    def migrate_stream(self, stream : SparseStream):
+        """Replicates a local stream on peer, and connects the local stream as downstream.
+        """
+        self.logger.debug("Broadcasting stream %s to peer %s", stream, self.protocol)
+
+        self.protocol.send_create_connector_stream(stream.stream_id, stream.stream_alias)
+
+        # TODO: Subscribe to streams separately
+        stream.subscribe(self.protocol)
 
 class ClusterOrchestrator(SparseSlice):
     """Cluster orchestrator distributes modules and migrates operators within the cluster.
@@ -38,17 +49,15 @@ class ClusterOrchestrator(SparseSlice):
 
         self.cluster_connections = set()
 
-    def add_cluster_connection(self, protocol : SparseProtocol, direction : str):
+    def add_cluster_connection(self, protocol : ClusterProtocol, direction : str):
         """Adds a connection to another cluster node for stream routing and operator migration.
         """
-        cluster_connection = ClusterConnection(protocol, direction)
+        cluster_connection = ClusterConnection(protocol, direction, self.logger)
         self.cluster_connections.add(cluster_connection)
         self.logger.info("Added %s connection with node %s", direction, protocol)
 
         for connector_stream in self.stream_router.streams:
-            cluster_connection.protocol.send_create_connector_stream(connector_stream.stream_id,
-                                                                     connector_stream.stream_alias)
-            connector_stream.subscribe(cluster_connection.protocol)
+            cluster_connection.migrate_stream(connector_stream)
 
     def remove_cluster_connection(self, protocol):
         """Removes a cluster connection.
@@ -59,7 +68,7 @@ class ClusterOrchestrator(SparseSlice):
                 self.logger.info("Removed %s connection with node %s", connection.direction, protocol)
                 return
 
-    def distribute_module(self, source : SparseProtocol, module : SparseModule):
+    def distribute_module(self, source : ClusterProtocol, module : SparseModule):
         """Distributes a module to other cluster nodes.
         """
         for connection in self.cluster_connections:
@@ -67,7 +76,7 @@ class ClusterOrchestrator(SparseSlice):
                 self.logger.info("Distributing module %s to node %s", module.name, connection.protocol)
                 connection.transfer_module(module)
 
-    def distribute_stream(self, source : SparseProtocol, stream : SparseStream):
+    def distribute_stream(self, source : ClusterProtocol, stream : SparseStream):
         """Distributes a stream to other cluster nodes.
         """
         if source in stream.protocols:
@@ -75,12 +84,7 @@ class ClusterOrchestrator(SparseSlice):
 
         for connection in self.cluster_connections:
             if connection.protocol != source:
-                self.logger.debug("Broadcasting stream %s to peer %s", stream, connection.protocol)
-
-                connection.protocol.send_create_connector_stream(stream.stream_id, stream.stream_alias)
-
-                # TODO: Subscribe to streams separately
-                stream.subscribe(connection.protocol)
+                connection.migrate_stream(stream)
 
     def deploy_pipelines(self, streams : set, pipelines : dict, source : SparseStream = None):
         """Deploys pipelines to a cluster.

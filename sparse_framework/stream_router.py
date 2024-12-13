@@ -1,7 +1,7 @@
 """This module implements stream routing functionality in the cluster.
 """
 from .sparse_slice import SparseSlice
-from .protocols import SparseProtocol
+from .protocols import ClusterProtocol
 from .runtime import SparseRuntime
 from .stream_api import SparseStream
 
@@ -18,7 +18,7 @@ class StreamRouter(SparseSlice):
         self.streams = set()
 
     def create_connector_stream(self, \
-                                source : SparseProtocol, \
+                                source : ClusterProtocol, \
                                 stream_id : str = None, \
                                 stream_alias : str = None):
         """Adds a new connector stream. A connector stream receives tuples over the network, either from another
@@ -42,7 +42,7 @@ class StreamRouter(SparseSlice):
                 return
         self.logger.warning("Received data for stream %s without a connector", stream_selector)
 
-    def subscribe(self, stream_alias : str, protocol : SparseProtocol):
+    def subscribe(self, stream_alias : str, protocol : ClusterProtocol):
         """Subscribes a protocol to receive tuples in a data stream.
         """
         for stream in self.streams:
