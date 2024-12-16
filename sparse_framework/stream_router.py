@@ -3,7 +3,8 @@
 from .sparse_slice import SparseSlice
 from .protocols import ClusterProtocol
 from .runtime import SparseRuntime
-from .stream_api import StreamDataSenderProtocol, SparseStream
+from .stream import SparseStream
+from .stream.protocols import StreamDataSenderProtocol
 
 class StreamRouter(SparseSlice):
     """Stream router then ensures that streams are routed according to application specifications. It receives

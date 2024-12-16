@@ -3,35 +3,9 @@
 import uuid
 import logging
 
-from .protocols import SparseTransportProtocol
-from .runtime.operator import StreamOperator
+from ..runtime.operator import StreamOperator
 
-__all__ = ["SparseStream", "StreamDataReceiverProtocol", "StreamDataSenderProtocol"]
-
-class StreamDataReceiverProtocol(SparseTransportProtocol):
-    """Stream data protocol transmits new tuples for a stream to subscribed nodes.
-    """
-    def __init__(self, on_data_tuple_received = None):
-        super().__init__()
-        self.on_data_tuple_received = on_data_tuple_received
-
-    def object_received(self, obj : dict):
-        if obj["op"] == "data_tuple":
-            stream_selector = obj["stream_selector"]
-            data_tuple = obj["tuple"]
-
-            self.logger.debug("Received tuple for stream %s from peer %s", stream_selector, self)
-            if self.on_data_tuple_received is not None:
-                self.on_data_tuple_received(stream_selector, data_tuple)
-
-class StreamDataSenderProtocol(SparseTransportProtocol):
-    """Stream data protocol transmits new tuples for a stream to subscribed nodes.
-    """
-    def send_data_tuple(self, stream_selector : str, data_tuple):
-        """Sends a new data tuple for a stream.
-        """
-        self.logger.debug("Sending tuple for stream %s to peer %s", stream_selector, self)
-        self.send_payload({"op": "data_tuple", "stream_selector": stream_selector, "tuple": data_tuple })
+__all__ = ["SparseStream"]
 
 class SparseStream:
     """Sparse stream is an abstraction for an unbounded set of data tuples.
@@ -57,7 +31,7 @@ class SparseStream:
         """
         return stream_selector in (self.stream_alias, self.stream_id)
 
-    def subscribe(self, protocol : StreamDataSenderProtocol):
+    def subscribe(self, protocol):
         """Subscribes a protocol to receive stream tuples.
         """
         self.protocols.add(protocol)

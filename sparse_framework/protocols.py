@@ -386,7 +386,7 @@ class StreamReceiverProtocol(SparseTransportProtocol):
                            "stream_id": stream_id,
                            "stream_alias" : stream_alias})
 
-from .stream_api import StreamDataReceiverProtocol, StreamDataSenderProtocol
+from .stream.protocols import StreamDataReceiverProtocol, StreamDataSenderProtocol
 from .deployment.protocols import DeploymentServerProtocol
 
 class ClusterProtocol(MultiplexerProtocol):

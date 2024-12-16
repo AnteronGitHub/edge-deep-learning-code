@@ -3,7 +3,7 @@
 import asyncio
 
 from ..protocols import MultiplexerProtocol, StreamSubscribeProtocol
-from ..stream_api import StreamDataReceiverProtocol
+from ..stream.protocols import StreamDataReceiverProtocol
 
 from .helper_functions import retry_connection_until_successful
 

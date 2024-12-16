@@ -5,7 +5,8 @@ import uuid
 import logging
 
 from ..protocols import MultiplexerProtocol, StreamMigratorProtocol
-from ..stream_api import StreamDataSenderProtocol, SparseStream
+from ..stream import SparseStream
+from ..stream.protocols import StreamDataSenderProtocol
 
 class SourceProtocol(MultiplexerProtocol):
     """Source protocol connects to a cluster end point and receives a stream id that can be used to transmit data

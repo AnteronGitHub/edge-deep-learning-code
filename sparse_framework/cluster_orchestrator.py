@@ -5,7 +5,7 @@ from .module_repo import SparseModule
 from .protocols import ClusterProtocol
 from .runtime import SparseRuntime
 from .sparse_slice import SparseSlice
-from .stream_api import SparseStream
+from .stream import SparseStream
 
 class ClusterConnection:
     """Data class for maintaining data about connected cluster nodes.
