@@ -20,6 +20,7 @@ class StreamDataReceiverProtocol(SparseTransportProtocol):
             stream_selector = obj["stream_selector"]
             data_tuple = obj["tuple"]
 
+            self.logger.debug("Received tuple for stream %s from peer %s", stream_selector, self)
             if self.on_data_tuple_received is not None:
                 self.on_data_tuple_received(stream_selector, data_tuple)
 

@@ -7,7 +7,6 @@ import pickle
 import struct
 import uuid
 
-from .deployment import Deployment
 from .module_repo import SparseModule
 
 class SparseTransportProtocol(asyncio.Protocol):
@@ -140,69 +139,6 @@ class MultiplexerProtocol(SparseTransportProtocol):
         for protocol in self.protocols:
             protocol.connection_lost(exc)
         super().connection_lost(exc)
-
-class DeploymentServerProtocol(SparseTransportProtocol):
-    """Deployment server protocol receives and handles requests to create new deployments into a sparse cluster.
-    """
-    def __init__(self, cluster_orchestrator):
-        super().__init__()
-        self.cluster_orchestrator = cluster_orchestrator
-
-    def object_received(self, obj : dict):
-        if obj["op"] == "create_deployment" and "status" not in obj:
-            deployment = obj["deployment"]
-            self.create_deployment_received(deployment)
-
-    def create_deployment_received(self, deployment : Deployment):
-        """Callback triggered when a deployment creation is received.
-        """
-        self.cluster_orchestrator.create_deployment(deployment)
-
-        self.send_create_deployment_ok()
-
-    def send_create_deployment_ok(self):
-        """Replies to the sender that a deployment was created successfully.
-        """
-        self.send_payload({"op": "create_deployment", "status": "success"})
-
-class DeploymentClientProtocol(SparseTransportProtocol):
-    """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
-
-    Application is deployed in two phases. First its DAG is deployed as a dictionary, and then the application modules
-    are deployed as a ZIP archive.
-    """
-    def __init__(self, deployment : Deployment, on_con_lost : asyncio.Future, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.on_con_lost = on_con_lost
-        self.deployment = deployment
-
-    def connection_made(self, transport):
-        super().connection_made(transport)
-
-        self.send_create_deployment(self.deployment)
-
-    def send_create_deployment(self, deployment : Deployment):
-        """Propagates a deployment in the cluster.
-        """
-        self.send_payload({"op": "create_deployment", "deployment": deployment})
-
-    def object_received(self, obj : dict):
-        if obj["op"] == "create_deployment" and "status" in obj:
-            if obj["status"] == "success":
-                self.create_deployment_ok_received()
-            else:
-                self.logger.info("Unable to create a deployment")
-
-    def create_deployment_ok_received(self):
-        """Called when a deployment has been acknowledged.
-        """
-        self.logger.info("Deployment '%s' created successfully.", self.deployment)
-        self.transport.close()
-
-    def connection_lost(self, exc):
-        if self.on_con_lost is not None:
-            self.on_con_lost.set_result(True)
 
 class ModuleReceiverProtocol(SparseTransportProtocol):
     """Module receiver receives a Sparse module from another node.
@@ -451,6 +387,7 @@ class StreamReceiverProtocol(SparseTransportProtocol):
                            "stream_alias" : stream_alias})
 
 from .stream_api import StreamDataReceiverProtocol, StreamDataSenderProtocol
+from .deployment.protocols import DeploymentServerProtocol
 
 class ClusterProtocol(MultiplexerProtocol):
     """Super class for cluster node transport protocols.
@@ -461,7 +398,7 @@ class ClusterProtocol(MultiplexerProtocol):
         self.stream_migrator_protocol = StreamMigratorProtocol()
         self.stream_data_sender_protocol = StreamDataSenderProtocol()
 
-        super().__init__({ DeploymentServerProtocol(node.cluster_orchestrator),
+        super().__init__({ DeploymentServerProtocol(node.cluster_orchestrator.create_deployment),
                            ModuleReceiverProtocol(node.module_repo, node.cluster_orchestrator),
                            StreamDataReceiverProtocol(self.node.stream_router.tuple_received),
                            StreamReceiverProtocol(self.create_connector_stream_received),
