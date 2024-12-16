@@ -1,10 +1,11 @@
 """This module implements stream routing functionality in the cluster.
 """
-from .sparse_slice import SparseSlice
-from .cluster.protocols import ClusterProtocol
-from .runtime import SparseRuntime
-from .stream import SparseStream
-from .stream.protocols import StreamDataSenderProtocol
+from ..sparse_slice import SparseSlice
+from ..cluster.protocols import ClusterProtocol
+from ..runtime import SparseRuntime
+
+from .stream_api import SparseStream
+from .protocols import StreamDataSenderProtocol
 
 class StreamRouter(SparseSlice):
     """Stream router then ensures that streams are routed according to application specifications. It receives

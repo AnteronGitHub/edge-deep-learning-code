@@ -5,7 +5,6 @@ from ..protocols import SparseTransportProtocol, MultiplexerProtocol
 from ..stream.protocols import StreamDataReceiverProtocol, \
                               StreamDataSenderProtocol, \
                               StreamPublishProtocol, \
-                              StreamSubscribeProtocol, \
                               StreamMigratorProtocol, \
                               StreamReceiverProtocol
 from ..module import SparseModule

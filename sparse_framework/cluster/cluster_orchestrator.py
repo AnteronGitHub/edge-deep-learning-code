@@ -1,11 +1,14 @@
 """This module contains functionality for the cluster orchestration.
 """
-from .deployment import Deployment
-from .module import SparseModule
-from .cluster.protocols import ClusterProtocol
-from .runtime import SparseRuntime
-from .sparse_slice import SparseSlice
-from .stream import SparseStream
+from ..deployment import Deployment
+from ..module import SparseModule
+from ..runtime import SparseRuntime
+from ..sparse_slice import SparseSlice
+from ..stream import SparseStream
+
+from .protocols import ClusterProtocol
+
+__all__ = ["ClusterOrchestrator"]
 
 class ClusterConnection:
     """Data class for maintaining data about connected cluster nodes.
