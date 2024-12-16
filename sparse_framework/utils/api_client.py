@@ -8,8 +8,8 @@ import tempfile
 
 from ..deployment import Deployment
 from ..deployment.protocols import DeploymentClientProtocol
-from ..module_repo import SparseModule
-from ..protocols import ModuleSenderProtocol
+from ..module import SparseModule
+from ..module.protocols import ModuleSenderProtocol
 
 from .helper_functions import retry_connection_until_successful
 

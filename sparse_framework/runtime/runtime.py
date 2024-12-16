@@ -2,7 +2,7 @@
 """
 import asyncio
 
-from ..module_repo import ModuleRepository, OperatorNotFoundError
+from ..module import ModuleRepository, OperatorNotFoundError
 from ..sparse_slice import SparseSlice
 from ..stats import QoSMonitor
 

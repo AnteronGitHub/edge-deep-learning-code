@@ -6,7 +6,7 @@ import uuid
 
 from .node_config import SparseNodeConfig
 from .cluster_orchestrator import ClusterOrchestrator
-from .module_repo import ModuleRepository
+from .module import ModuleRepository
 from .runtime import SparseRuntime
 from .stream_router import StreamRouter
 from .stats import QoSMonitor

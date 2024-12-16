@@ -4,7 +4,9 @@ import importlib
 import os
 import shutil
 
-from .sparse_slice import SparseSlice
+from ..sparse_slice import SparseSlice
+
+__all__ = ["SparseModule", "ModuleRepository", "OperatorNotFoundError"]
 
 class SparseModule:
     """A sparse app is a Python module that provides a set of sources, operators, and sinks.

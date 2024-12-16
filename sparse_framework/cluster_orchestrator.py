@@ -1,7 +1,7 @@
 """This module contains functionality for the cluster orchestration.
 """
 from .deployment import Deployment
-from .module_repo import SparseModule
+from .module import SparseModule
 from .protocols import ClusterProtocol
 from .runtime import SparseRuntime
 from .sparse_slice import SparseSlice
