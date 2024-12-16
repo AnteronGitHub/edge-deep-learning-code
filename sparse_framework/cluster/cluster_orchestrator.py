@@ -4,7 +4,7 @@ from ..deployment import Deployment
 from ..module import SparseModule
 from ..runtime import SparseRuntime
 from ..sparse_slice import SparseSlice
-from ..stream import SparseStream
+from ..stream import SparseStream, StreamRepository
 
 from .protocols import ClusterProtocol
 
@@ -44,11 +44,11 @@ class ClusterConnection:
 class ClusterOrchestrator(SparseSlice):
     """Cluster orchestrator distributes modules and migrates operators within the cluster.
     """
-    def __init__(self, runtime : SparseRuntime, stream_router : SparseRuntime, *args, **kwargs):
+    def __init__(self, runtime : SparseRuntime, stream_repository : StreamRepository, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.runtime = runtime
-        self.stream_router = stream_router
+        self.stream_repository = stream_repository
 
         self.cluster_connections = set()
 
@@ -59,7 +59,7 @@ class ClusterOrchestrator(SparseSlice):
         self.cluster_connections.add(cluster_connection)
         self.logger.info("Added %s connection with node %s", direction, protocol)
 
-        for connector_stream in self.stream_router.streams:
+        for connector_stream in self.stream_repository.streams:
             cluster_connection.migrate_stream(connector_stream)
 
     def remove_cluster_connection(self, protocol):
@@ -94,13 +94,13 @@ class ClusterOrchestrator(SparseSlice):
         """
         for stream_selector in pipelines.keys():
             if stream_selector in streams:
-                output_stream = self.stream_router.get_stream(stream_alias=stream_selector)
+                output_stream = self.stream_repository.get_stream(stream_alias=stream_selector)
             else:
                 operator = self.runtime.place_operator(stream_selector)
                 if source is None:
                     self.logger.warning("Placed operator '%s' with no input stream", operator)
                 else:
-                    output_stream = self.stream_router.get_stream()
+                    output_stream = self.stream_repository.get_stream()
                     source.connect_to_operator(operator, output_stream)
 
             destinations = pipelines[stream_selector]
@@ -109,7 +109,7 @@ class ClusterOrchestrator(SparseSlice):
             elif isinstance(destinations, list):
                 for selector in destinations:
                     if selector in streams:
-                        final_stream = self.stream_router.get_stream(selector)
+                        final_stream = self.stream_repository.get_stream(selector)
                         output_stream.connect_to_stream(final_stream)
                     else:
                         self.logger.warning("Leaf operator %s not created", selector)

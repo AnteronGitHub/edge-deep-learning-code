@@ -8,7 +8,7 @@ from .node_config import SparseNodeConfig
 from .cluster import ClusterOrchestrator
 from .module import ModuleRepository
 from .runtime import SparseRuntime
-from .stream import StreamRouter
+from .stream import StreamRepository, StreamRouter
 from .stats import QoSMonitor
 from .cluster.protocols import ClusterClientProtocol, ClusterServerProtocol
 from .utils.helper_functions import retry_connection_until_successful
@@ -39,10 +39,9 @@ class SparseNode:
         self.qos_monitor = QoSMonitor(self.config)
         self.module_repo = ModuleRepository(self.config)
         self.runtime = SparseRuntime(self.module_repo, self.qos_monitor, self.config)
-        self.stream_router = StreamRouter(self.runtime, self.config)
-        self.cluster_orchestrator = ClusterOrchestrator(self.runtime,
-                                                        self.stream_router,
-                                                        self.config)
+        self.stream_repository = StreamRepository(self.runtime)
+        self.stream_router = StreamRouter(self.runtime, self.stream_repository, self.config)
+        self.cluster_orchestrator = ClusterOrchestrator(self.runtime, self.stream_repository, self.config)
 
         self.slices = [
                 self.qos_monitor,
