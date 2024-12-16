@@ -4,11 +4,14 @@ import importlib
 import os
 import shutil
 
-from .node import SparseSlice
+from ..sparse_slice import SparseSlice
+
+__all__ = ["SparseModule", "ModuleRepository", "OperatorNotFoundError"]
 
 class SparseModule:
     """A sparse app is a Python module that provides a set of sources, operators, and sinks.
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, name : str, zip_path : str):
         self.name = name
         self.zip_path = zip_path

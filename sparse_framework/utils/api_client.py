@@ -7,11 +7,13 @@ import shutil
 import tempfile
 
 from ..deployment import Deployment
-from ..protocols import SparseProtocol
+from ..deployment.protocols import DeploymentClientProtocol
+from ..module import SparseModule
+from ..module.protocols import ModuleSenderProtocol
 
 from .helper_functions import retry_connection_until_successful
 
-class ModuleUploaderProtocol(SparseProtocol):
+class ModuleUploaderProtocol(ModuleSenderProtocol):
     """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
 
     Application is deployed in two phases. First its DAG is deployed as a dictionary, and then the application modules
@@ -27,10 +29,7 @@ class ModuleUploaderProtocol(SparseProtocol):
     def connection_made(self, transport):
         super().connection_made(transport)
 
-        self.send_init_module_transfer(self.module_name)
-
-    def init_module_transfer_ok_received(self):
-        self.send_file(self.archive_path)
+        self.transfer_module(SparseModule(self.module_name, self.archive_path))
 
     def transfer_file_ok_received(self):
         self.logger.info("Module '%s' uploaded successfully.", self.module_name)
@@ -39,30 +38,6 @@ class ModuleUploaderProtocol(SparseProtocol):
     def connection_lost(self, exc):
         if self.on_con_lost is not None:
             self.on_con_lost.set_result(True)
-
-class DeploymentPostProtocol(SparseProtocol):
-    """App uploader protocol uploads a Sparse module including an application deployment to an open Sparse API.
-
-    Application is deployed in two phases. First its DAG is deployed as a dictionary, and then the application modules
-    are deployed as a ZIP archive.
-    """
-    def __init__(self, deployment : Deployment, on_con_lost : asyncio.Future, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.on_con_lost = on_con_lost
-        self.deployment = deployment
-
-    def connection_made(self, transport):
-        super().connection_made(transport)
-        self.send_create_deployment(self.deployment)
-
-    def connection_lost(self, exc):
-        if self.on_con_lost is not None:
-            self.on_con_lost.set_result(True)
-
-    def create_deployment_ok_received(self):
-        self.logger.info("Deployment '%s' created successfully.", self.deployment)
-        self.transport.close()
 
 class SparseAPIClient:
     """Sparse API client can be used to communicate with the Sparse API to upload applications.
@@ -97,7 +72,7 @@ class SparseAPIClient:
     async def post_deployment(self, deployment : Deployment):
         """Creates a new deployment to the cluster.
         """
-        await retry_connection_until_successful(lambda on_con_lost: DeploymentPostProtocol(deployment, on_con_lost), \
+        await retry_connection_until_successful(lambda on_con_lost: DeploymentClientProtocol(deployment, on_con_lost), \
                                                 self.api_host, \
                                                 self.api_port, \
                                                 self.logger)

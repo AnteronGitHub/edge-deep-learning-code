@@ -3,14 +3,14 @@
 import uuid
 import logging
 
-from .protocols import SparseProtocol
-from .runtime.operator import StreamOperator
+from ..runtime.operator import StreamOperator
 
 __all__ = ["SparseStream"]
 
 class SparseStream:
     """Sparse stream is an abstraction for an unbounded set of data tuples.
     """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, stream_id : str = None, stream_alias : str = None, runtime = None):
         self.logger = logging.getLogger("sparse")
 
@@ -31,7 +31,7 @@ class SparseStream:
         """
         return stream_selector in (self.stream_alias, self.stream_id)
 
-    def subscribe(self, protocol : SparseProtocol):
+    def subscribe(self, protocol):
         """Subscribes a protocol to receive stream tuples.
         """
         self.protocols.add(protocol)
@@ -62,7 +62,7 @@ class SparseStream:
             self.runtime.call_operator(operator, self, data_tuple, output_stream)
 
         for protocol in self.protocols:
-            protocol.send_data_tuple(self, data_tuple)
+            protocol.send_data_tuple(str(self), data_tuple)
 
         for stream in self.streams:
             stream.emit(data_tuple)
