@@ -10,7 +10,7 @@ from .module import ModuleRepository
 from .runtime import SparseRuntime
 from .stream_router import StreamRouter
 from .stats import QoSMonitor
-from .protocols import ClusterClientProtocol, ClusterServerProtocol
+from .cluster.protocols import ClusterClientProtocol, ClusterServerProtocol
 from .utils.helper_functions import retry_connection_until_successful
 
 __all__ = ["SparseNode"]

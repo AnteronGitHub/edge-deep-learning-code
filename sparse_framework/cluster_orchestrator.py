@@ -2,7 +2,7 @@
 """
 from .deployment import Deployment
 from .module import SparseModule
-from .protocols import ClusterProtocol
+from .cluster.protocols import ClusterProtocol
 from .runtime import SparseRuntime
 from .sparse_slice import SparseSlice
 from .stream import SparseStream

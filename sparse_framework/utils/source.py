@@ -4,9 +4,9 @@ import asyncio
 import uuid
 import logging
 
-from ..protocols import MultiplexerProtocol, StreamMigratorProtocol
+from ..protocols import MultiplexerProtocol
 from ..stream import SparseStream
-from ..stream.protocols import StreamDataSenderProtocol
+from ..stream.protocols import StreamDataSenderProtocol, StreamMigratorProtocol
 
 class SourceProtocol(MultiplexerProtocol):
     """Source protocol connects to a cluster end point and receives a stream id that can be used to transmit data

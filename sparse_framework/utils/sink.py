@@ -2,8 +2,8 @@
 """
 import asyncio
 
-from ..protocols import MultiplexerProtocol, StreamSubscribeProtocol
-from ..stream.protocols import StreamDataReceiverProtocol
+from ..protocols import MultiplexerProtocol
+from ..stream.protocols import StreamDataReceiverProtocol, StreamSubscribeProtocol
 
 from .helper_functions import retry_connection_until_successful
 
