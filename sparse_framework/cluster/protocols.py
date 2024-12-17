@@ -22,6 +22,7 @@ class ChildNodeProtocol(SparseTransportProtocol):
     def send_connect_downstream(self):
         """Initiates a downstream connection.
         """
+        self.logger.info("Connecting to cluster parent %s", self)
         self.send_payload({"op": "connect_downstream"})
 
     def object_received(self, obj : dict):

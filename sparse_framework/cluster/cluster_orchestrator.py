@@ -1,7 +1,7 @@
 """This module contains functionality for the cluster orchestration.
 """
 from ..deployment import Deployment
-from ..module import SparseModule
+from ..module import SparseModule, ModuleRepository
 from ..runtime import SparseRuntime
 from ..sparse_slice import SparseSlice
 from ..stream import SparseStream, StreamRepository
@@ -44,11 +44,16 @@ class ClusterConnection:
 class ClusterOrchestrator(SparseSlice):
     """Cluster orchestrator distributes modules and migrates operators within the cluster.
     """
-    def __init__(self, runtime : SparseRuntime, stream_repository : StreamRepository, *args, **kwargs):
+    def __init__(self,
+                 runtime : SparseRuntime,
+                 stream_repository : StreamRepository,
+                 module_repository : ModuleRepository,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.runtime = runtime
         self.stream_repository = stream_repository
+        self.module_repository = module_repository
 
         self.cluster_connections = set()
 
@@ -61,6 +66,8 @@ class ClusterOrchestrator(SparseSlice):
 
         for connector_stream in self.stream_repository.streams:
             cluster_connection.migrate_stream(connector_stream)
+        for module in self.module_repository.apps:
+            cluster_connection.transfer_module(module)
 
     def remove_cluster_connection(self, protocol):
         """Removes a cluster connection.
@@ -75,8 +82,7 @@ class ClusterOrchestrator(SparseSlice):
         """Distributes a module to other cluster nodes.
         """
         for connection in self.cluster_connections:
-            if connection.protocol != source:
-                self.logger.info("Distributing module %s to node %s", module.name, connection.protocol)
+            if str(connection.protocol) != str(source):
                 connection.transfer_module(module)
 
     def distribute_stream(self, source : ClusterProtocol, stream : SparseStream):

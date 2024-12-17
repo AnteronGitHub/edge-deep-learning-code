@@ -31,7 +31,7 @@ class StreamRouter(SparseSlice):
         if source in connector_stream.protocols:
             connector_stream.protocols.remove(source)
 
-        self.logger.info("Stream %s listening to source %s", connector_stream.stream_alias, source)
+        self.logger.debug("Stream %s listening to source %s", connector_stream.stream_alias, source)
 
         return connector_stream
 

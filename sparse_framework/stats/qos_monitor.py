@@ -105,7 +105,7 @@ class QoSMonitor(SparseSlice):
         record = self.statistics_service.get_operator_runtime_statistics_record(operator, source, sequence_no)
         record.result_received()
         self.statistics_service.record_complete(record)
-        self.logger.info("Operator %s queueing time: %.2f ms, processing latency: %.2f ms",
+        self.logger.debug("Operator %s queueing time: %.2f ms, processing latency: %.2f ms",
                           operator,
                           record.queueing_time,
                           record.processing_latency)

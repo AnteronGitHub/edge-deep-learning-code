@@ -41,7 +41,10 @@ class SparseNode:
         self.runtime = SparseRuntime(self.module_repo, self.qos_monitor, self.config)
         self.stream_repository = StreamRepository(self.runtime)
         self.stream_router = StreamRouter(self.runtime, self.stream_repository, self.config)
-        self.cluster_orchestrator = ClusterOrchestrator(self.runtime, self.stream_repository, self.config)
+        self.cluster_orchestrator = ClusterOrchestrator(self.runtime,
+                                                        self.stream_repository,
+                                                        self.module_repo,
+                                                        self.config)
 
         self.slices = [
                 self.qos_monitor,

@@ -22,11 +22,14 @@ class ModuleReceiverProtocol(SparseTransportProtocol):
         """Callback for when a module transfer is received.
         """
         if self.receiving_module_name is None:
+            self.logger.info("Receiving module %s from node %s", module_name, self)
             self.receiving_module_name = module_name
             self.send_init_module_transfer_ok()
         else:
+            self.logger.error("Received init module %s transfer from node %s when already transferring module",
+                              module_name,
+                              self)
             self.send_init_module_transfer_error()
-
 
     def send_init_module_transfer_ok(self):
         """Replies that a requested module transfer has been initialized successfully.
@@ -66,6 +69,7 @@ class ModuleSenderProtocol(SparseTransportProtocol):
     def transfer_module(self, module : SparseModule):
         """Starts a module transfer for the specified locally available module.
         """
+        self.logger.info("Transferring module %s to node %s", module.name, self)
         self.transferring_module = module
 
         self.send_init_module_transfer(self.transferring_module.name)
@@ -88,6 +92,7 @@ class ModuleSenderProtocol(SparseTransportProtocol):
     def init_module_transfer_ok_received(self):
         """Callback for when a module transfer has been acknowledged to have succeeded by the peer.
         """
+        self.logger.info("Sending module file")
         self.send_file(self.transferring_module.zip_path)
 
     def init_module_transfer_error_received(self):
@@ -98,3 +103,4 @@ class ModuleSenderProtocol(SparseTransportProtocol):
     def transfer_file_ok_received(self):
         """Callback for when a file transfer has been acknowledged by the peer.
         """
+        self.transferring_module = None
