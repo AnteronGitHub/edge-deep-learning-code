@@ -1,5 +1,6 @@
 """This module contains Quality of Service (QoS) monitor implementation.
 """
+import multiprocessing
 from time import time
 
 from ..runtime.operator import StreamOperator
@@ -57,35 +58,43 @@ class OperatorRuntimeStatisticsService:
     """This class maintains a set of active statistics records.
     """
     def __init__(self):
+        self.lock = multiprocessing.Manager().Lock()
         self.active_records = set()
 
     def get_operator_runtime_statistics_record(self, operator, source, sequence_no):
         """Returns an operator runtime statistics records matching given operator and source stream. If one is not
         already found it will be created.
         """
-        for record in self.active_records:
-            if record.operator_id == operator.id \
-                    and record.source_stream_id == source.stream_id \
-                    and record.source_stream_sequence_no == sequence_no:
-                return record
+        with self.lock:
+            for record in self.active_records:
+                if record.operator_id == operator.id \
+                        and record.source_stream_id == source.stream_id \
+                        and record.source_stream_sequence_no == sequence_no:
+                    return record
 
-        record = OperatorRuntimeStatisticsRecord(operator.id, source.stream_id, sequence_no)
-        self.active_records.add(record)
-        return record
+            record = OperatorRuntimeStatisticsRecord(operator.id, source.stream_id, sequence_no)
+            self.active_records.add(record)
+            return record
 
     def record_complete(self, record):
         """Mark a record complete, and remove it from the active records.
 
         """
         # TODO: Log the record after completion.
-        self.active_records.remove(record)
+        with self.lock:
+            self.active_records.remove(record)
 
 class QoSMonitor(SparseSlice):
     """Quality of Service Monitor Slice maintains a coroutine for monitoring the runtime performance of the node.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.statistics_service = None
+
+    def get_futures(self, futures):
         self.statistics_service = OperatorRuntimeStatisticsService()
+
+        return futures
 
     def operator_input_buffered(self, operator : StreamOperator, source, sequence_no):
         """Called when an input for a given operator from a source stream is buffered.
