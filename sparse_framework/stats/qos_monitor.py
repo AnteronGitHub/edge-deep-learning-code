@@ -42,7 +42,7 @@ class OperatorRuntimeStatisticsRecord:
     def queueing_time(self) -> float:
         """Time waited in queue for the operator in milliseconds.
         """
-        if self.result_received_at is None or self.input_dispatched_at is None:
+        if self.input_buffered_at is None or self.input_dispatched_at is None:
             return None
         return (self.input_dispatched_at - self.input_buffered_at)*1000.0
 
