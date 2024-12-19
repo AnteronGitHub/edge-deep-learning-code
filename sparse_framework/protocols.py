@@ -16,6 +16,13 @@ class SparseMessageHeader:
         self.data_type = data_type
         self.data_size = data_size
 
+    def __str__(self):
+        if self.data_type == "f":
+            type_str = "file"
+        else:
+            type_str = "object"
+        return f"{self.data_size} byte {type_str} header"
+
     @classmethod
     def from_bytes(cls, header_bytes : bytes):
         """Parses a message header from bytes.
@@ -67,8 +74,8 @@ class SparseTransportProtocol(asyncio.Protocol):
         tailing bytes from the previous one.
         """
         self.data_buffer.seek(SPARSE_MESSAGE_HEADER_SIZE)
-        payload_bytes = self.data_buffer.read(self.message_header.data_size)
-        payload_type = self.message_header.data_type
+        message_payload = self.data_buffer.read(self.message_header.data_size)
+        message_header = self.message_header
 
         self.data_buffer.seek(SPARSE_MESSAGE_HEADER_SIZE + self.message_header.data_size)
         buffer_tail = self.data_buffer.read()
@@ -77,7 +84,7 @@ class SparseTransportProtocol(asyncio.Protocol):
         self.data_buffer = io.BytesIO()
         self.data_buffer.write(buffer_tail)
 
-        return payload_type, payload_bytes
+        return message_header, message_payload
 
     def data_received(self, data : bytes):
         self.data_buffer.write(data)
@@ -90,22 +97,22 @@ class SparseTransportProtocol(asyncio.Protocol):
             self.message_header = SparseMessageHeader.from_bytes(self._read_header_bytes(buffer_bytes))
 
         if buffer_bytes >= SPARSE_MESSAGE_HEADER_SIZE + self.message_header.data_size:
-            payload_type, payload_bytes = self._read_data_bytes()
-            self.message_received(payload_type, payload_bytes)
+            message_header, message_payload = self._read_data_bytes()
+            self.message_received(message_header, message_payload)
             self.data_received(b"")
 
-    def message_received(self, payload_type : str, data : bytes):
+    def message_received(self, message_header : str, message_payload : bytes):
         """Callback function that is triggered when all the bytes specified by a message header been received.
         """
-        if payload_type == "f":
-            self.file_received(data)
-        elif payload_type == "o":
+        if message_header.data_type == "f":
+            self.file_received(message_payload)
+        elif message_header.data_type == "o":
             try:
-                self.object_received(pickle.loads(data))
+                self.object_received(pickle.loads(message_payload))
             except pickle.UnpicklingError:
-                self.logger.error("Deserialization error. %s payload size, %s buffer size.",
-                                  len(data),
-                                  self.data_buffer.getbuffer().nbytes)
+                self.logger.error("Unable to deserialize message with %s and actual payload size %s bytes.",
+                                  message_header,
+                                  len(message_payload))
 
     def file_received(self, data : bytes):
         """Callback function that is triggered when all the bytes specified by a message header that specifies file
@@ -125,8 +132,7 @@ class SparseTransportProtocol(asyncio.Protocol):
             file_size = len(data_bytes)
 
             self.logger.debug("Sending %s byte file to %s", file_size, str(self))
-            self.transport.write(SparseMessageHeader("f", file_size).to_bytes())
-            self.transport.write(data_bytes)
+            self.transport.write(SparseMessageHeader("f", file_size).to_bytes() + data_bytes)
 
     def send_payload(self, payload : dict):
         """Transmits a given object to the peer.
@@ -135,8 +141,7 @@ class SparseTransportProtocol(asyncio.Protocol):
         payload_size = len(payload_data)
 
         self.logger.debug("Sending %s byte message to %s", payload_size, str(self))
-        self.transport.write(SparseMessageHeader("o", payload_size).to_bytes())
-        self.transport.write(payload_data)
+        self.transport.write(SparseMessageHeader("o", payload_size).to_bytes() + payload_data)
 
 class MultiplexerProtocol(SparseTransportProtocol):
     """Multiplexes protocols into the same network connection. Provides the same external interface as each of the
