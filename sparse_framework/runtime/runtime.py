@@ -67,8 +67,6 @@ class SparseRuntime(SparseSlice):
             self.logger.debug("Created task for operator %s", operator)
             self.task_queue.put_nowait(operator)
 
-        self.qos_monitor.operator_input_buffered(operator, source, sequence_no)
-
     def result_received(self, operator : StreamOperator, source, sequence_no, output_tuple, output):
         """Callback for when a result has been processed in the runtime, and the result has been transferred back to
         host memory.

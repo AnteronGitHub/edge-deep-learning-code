@@ -33,6 +33,8 @@ class SparseIOBuffer:
                                       sequence_no,
                                       result_callback))
 
+        if self.qos_monitor is not None:
+            self.qos_monitor.operator_input_buffered(self.operator, source_stream, sequence_no)
         self.logger.debug("%d samples buffered.", index+1)
         return index
 
