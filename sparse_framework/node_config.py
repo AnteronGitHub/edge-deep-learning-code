@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 class SparseNodeConfig:
     """Data class for the configuration options available for a cluster node.
     """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self):
         self.upstream_host = None
         self.upstream_port = None
@@ -17,6 +18,7 @@ class SparseNodeConfig:
         self.root_server_address = None
         self.root_server_port = None
         self.app_repo_path = None
+        self.data_path = None
 
     def load_config(self):
         """Loads the configuration.
@@ -30,3 +32,4 @@ class SparseNodeConfig:
         self.root_server_address = os.environ.get('SPARSE_ROOT_SERVER_ADDRESS')
         self.root_server_port = os.environ.get('SPARSE_ROOT_SERVER_PORT') or 50006
         self.app_repo_path = os.environ.get('SPARSE_APP_REPO_PATH') or '/usr/lib/sparse_framework/apps'
+        self.data_path = os.environ.get('SPARSE_DATA_PATH') or '/data/stats'

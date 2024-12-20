@@ -15,7 +15,7 @@ class MonitorDaemon:
         self.logger = logging.getLogger("sparse")
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.queue = queue
-        self.file_logger = FileLogger()
+        self.file_logger = FileLogger("/data/stats")
 
     async def start(self):
         """Starts the stats queue dispatcher.
@@ -24,5 +24,6 @@ class MonitorDaemon:
         loop = asyncio.get_running_loop()
         while True:
             record = await self.queue.get()
-            await loop.run_in_executor(self.executor, functools.partial(self.file_logger.log_record, record))
+            await loop.run_in_executor(self.executor,
+                                       functools.partial(self.file_logger.write_runtime_statistics, record))
             self.queue.task_done()
