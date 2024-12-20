@@ -42,7 +42,7 @@ class SparseTransportProtocol(asyncio.Protocol):
     """
     def __init__(self):
         self.connection_id = str(uuid.uuid4())
-        self.logger = logging.getLogger("SparseTransportProtocol")
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.transport = None
 
         self.data_buffer = io.BytesIO()

@@ -91,7 +91,7 @@ class StreamMigratorProtocol(SparseTransportProtocol):
     def send_create_connector_stream(self, stream_id : str = None, stream_alias : str = None):
         """Propagates a stream to the peer.
         """
-        self.logger.info("Migrating stream %s to peer %s", stream_id, self)
+        self.logger.debug("Migrating stream %s to peer %s", stream_id, self)
         self.send_payload({"op": "create_connector_stream", \
                            "stream_id": stream_id, \
                            "stream_alias": stream_alias})
@@ -101,9 +101,14 @@ class StreamMigratorProtocol(SparseTransportProtocol):
             if obj["status"] == "success":
                 stream_id = obj["stream_id"]
                 stream_alias = obj["stream_alias"]
+                self.create_connector_stream_ok_received(stream_id, stream_alias)
 
-                if self.on_create_connector_stream_ok_received is not None:
-                    self.on_create_connector_stream_ok_received(stream_id, stream_alias)
+    def create_connector_stream_ok_received(self, stream_id : str, stream_alias : str):
+        """Callback for when a stream has been successfully migrated.
+        """
+        self.logger.info("Migrated stream %s to peer %s", stream_alias or stream_id, self)
+        if self.on_create_connector_stream_ok_received is not None:
+            self.on_create_connector_stream_ok_received(stream_id, stream_alias)
 
 class StreamReceiverProtocol(SparseTransportProtocol):
     """Stream receiver protocol receives streams created in other nodes.

@@ -11,11 +11,13 @@ __all__ = ["SparseModule", "ModuleRepository", "OperatorNotFoundError"]
 class SparseModule:
     """A sparse app is a Python module that provides a set of sources, operators, and sinks.
     """
-    # pylint: disable=too-few-public-methods
     def __init__(self, name : str, zip_path : str):
         self.name = name
         self.zip_path = zip_path
         self.app_module = None
+
+    def __str__(self):
+        return self.name
 
     def load(self, app_repo_path : str):
         """Loads a module into memory from the specified module path.

@@ -26,7 +26,7 @@ class SparseNode:
         self.node_id = node_id
 
         logging.basicConfig(format='[%(asctime)s] %(name)s - %(levelname)s: %(message)s', level=log_level)
-        self.logger = logging.getLogger("sparse")
+        self.logger = logging.getLogger("SparseNode")
 
         self.config = SparseNodeConfig()
         self.config.load_config()
