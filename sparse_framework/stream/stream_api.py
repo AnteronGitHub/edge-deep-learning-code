@@ -12,7 +12,7 @@ class SparseStream:
     """
     # pylint: disable=too-many-instance-attributes
     def __init__(self, stream_id : str = None, stream_alias : str = None, runtime = None):
-        self.logger = logging.getLogger("sparse")
+        self.logger = logging.getLogger("SparseStream")
 
         self.stream_id = str(uuid.uuid4()) if stream_id is None else stream_id
         self.stream_alias = stream_alias
@@ -41,13 +41,16 @@ class SparseStream:
         """Connects a stream to operator with given output stream.
         """
         self.operators.add((operator, output_stream))
-        self.logger.info("Stream %s connected to operator %s with output stream %s", self, operator.name, output_stream)
+        self.logger.debug("Stream %s connected to operator %s with output stream %s",
+                          self,
+                          operator.name,
+                          output_stream)
 
     def connect_to_stream(self, stream):
         """Connects this stream to another, sending all new tuples to the target.
         """
         self.streams.add(stream)
-        self.logger.info("Connected stream %s to stream %s", self, stream)
+        self.logger.debug("Connected stream %s to stream %s", self, stream)
 
     def emit(self, data_tuple):
         """Sends a new data tuple to the connected operators and subscribed connections.

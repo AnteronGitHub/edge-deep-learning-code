@@ -11,7 +11,7 @@ class SparseSlice:
     """
     # pylint: disable=too-few-public-methods
     def __init__(self, config):
-        self.logger = logging.getLogger("sparse")
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.config = config
 
     def get_futures(self, futures):

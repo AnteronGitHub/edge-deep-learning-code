@@ -43,7 +43,7 @@ $(docker_build_file_pylint): $(dockerfile_pylint) $(py_requirements_pylint)
 		-t $(docker_image):$(docker_tag_pylint)
 	touch $(docker_build_file_pylint)
 
-.PHONY: docker clean run run-pylint run-experiment clean-experiment graphs
+.PHONY: docker clean run run-pylint run-tests run-experiment clean-experiment graphs
 
 docker: $(docker_build_file)
 	#make -C examples/splitnn docker
@@ -58,6 +58,9 @@ run:
 
 run-pylint: $(docker_build_file_pylint)
 	docker run --rm -v $(abspath .):/app $(docker_image):$(docker_tag_pylint)
+
+run-tests: $(docker_build_file_pylint)
+	docker run --rm -v $(abspath .):/app $(docker_image):$(docker_tag_pylint) python -m unittest -v
 
 run-experiment:
 	scripts/run-experiment.sh

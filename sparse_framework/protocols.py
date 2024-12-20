@@ -7,76 +7,112 @@ import pickle
 import struct
 import uuid
 
+SPARSE_MESSAGE_HEADER_SIZE = 9
+
+class SparseMessageHeader:
+    """Sparse messages include type and size (in bytes) of the message.
+    """
+    def __init__(self, data_type : str, data_size : int):
+        self.data_type = data_type
+        self.data_size = data_size
+
+    def __str__(self):
+        if self.data_type == "f":
+            type_str = "file"
+        else:
+            type_str = "object"
+        return f"{self.data_size} byte {type_str} header"
+
+    @classmethod
+    def from_bytes(cls, header_bytes : bytes):
+        """Parses a message header from bytes.
+        """
+        [data_type, data_size] = struct.unpack("!sQ", header_bytes)
+
+        return cls(data_type.decode(), data_size)
+
+    def to_bytes(self) -> bytes:
+        """Encodes a message header to bytes.
+        """
+        return struct.pack("!sQ", self.data_type.encode(), self.data_size)
+
 class SparseTransportProtocol(asyncio.Protocol):
     """Sparse transport protocol implements low-level communication for transmitting dictionary data and files over
     network.
     """
     def __init__(self):
         self.connection_id = str(uuid.uuid4())
-        self.logger = logging.getLogger("sparse")
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.transport = None
 
         self.data_buffer = io.BytesIO()
-        self.receiving_data = False
-        self.data_type = None
-        self.data_size = 0
+        self.message_header = None
 
     def __str__(self):
         """Returns the peer IP or 'unconnected' if no transport object is yet created.
         """
-        return "unconnected" if self.transport is None else self.transport.get_extra_info('peername')[0]
+        if self.transport is None:
+            return "unconnected"
 
-    def clear_buffer(self):
-        """Initializes the byte buffer and the related counters.
-        """
-        self.data_buffer = io.BytesIO()
-        self.receiving_data = False
-        self.data_type = None
-        self.data_size = 0
+        return f"{self.transport.get_extra_info('peername')[0]}:{self.transport.get_extra_info('peername')[1]}"
 
     def connection_made(self, transport):
         self.transport = transport
 
+    def _read_header_bytes(self, buffer_bytes : int) -> bytes:
+        """Reads the header bytes from the beginning of the buffer, then moves the pointer back to the end of the
+        buffer to resume writing.
+        """
+        self.data_buffer.seek(0)
+        header_bytes = self.data_buffer.read(SPARSE_MESSAGE_HEADER_SIZE)
+        self.data_buffer.seek(buffer_bytes)
+
+        return header_bytes
+
+    def _read_data_bytes(self) -> bytes:
+        """Reads the message payload from the end of the buffer, then creates an empty buffer and writes potential
+        tailing bytes from the previous one.
+        """
+        self.data_buffer.seek(SPARSE_MESSAGE_HEADER_SIZE)
+        message_payload = self.data_buffer.read(self.message_header.data_size)
+        message_header = self.message_header
+
+        self.data_buffer.seek(SPARSE_MESSAGE_HEADER_SIZE + self.message_header.data_size)
+        buffer_tail = self.data_buffer.read()
+
+        self.message_header = None
+        self.data_buffer = io.BytesIO()
+        self.data_buffer.write(buffer_tail)
+
+        return message_header, message_payload
+
     def data_received(self, data : bytes):
-        if self.receiving_data:
-            payload = data
-        else:
-            self.receiving_data = True
-            header = data[:9]
-            [self.data_type, self.data_size] = struct.unpack("!sQ", header)
-            payload = data[9:]
+        self.data_buffer.write(data)
+        buffer_bytes = self.data_buffer.getbuffer().nbytes
 
-        self.data_buffer.write(payload)
+        if buffer_bytes < SPARSE_MESSAGE_HEADER_SIZE:
+            return
 
-        if self.data_buffer.getbuffer().nbytes >= self.data_size:
-            payload_type = self.data_type.decode()
-            self.data_buffer.seek(0)
-            payload_bytes = self.data_buffer.read(self.data_size)
+        if self.message_header is None:
+            self.message_header = SparseMessageHeader.from_bytes(self._read_header_bytes(buffer_bytes))
 
-            if self.data_buffer.getbuffer().nbytes - self.data_size == 0:
-                self.clear_buffer()
-            else:
-                header = self.data_buffer.read(9)
-                [self.data_type, self.data_size] = struct.unpack("!sQ", header)
+        if buffer_bytes >= SPARSE_MESSAGE_HEADER_SIZE + self.message_header.data_size:
+            message_header, message_payload = self._read_data_bytes()
+            self.message_received(message_header, message_payload)
+            self.data_received(b"")
 
-                payload = self.data_buffer.read()
-                self.data_buffer = io.BytesIO()
-                self.data_buffer.write(payload)
-
-            self.message_received(payload_type, payload_bytes)
-
-    def message_received(self, payload_type : str, data : bytes):
+    def message_received(self, message_header : str, message_payload : bytes):
         """Callback function that is triggered when all the bytes specified by a message header been received.
         """
-        if payload_type == "f":
-            self.file_received(data)
-        elif payload_type == "o":
+        if message_header.data_type == "f":
+            self.file_received(message_payload)
+        elif message_header.data_type == "o":
             try:
-                self.object_received(pickle.loads(data))
+                self.object_received(pickle.loads(message_payload))
             except pickle.UnpicklingError:
-                self.logger.error("Deserialization error. %s payload size, %s buffer size.",
-                                  len(data),
-                                  self.data_buffer.getbuffer().nbytes)
+                self.logger.error("Unable to deserialize message with %s and actual payload size %s bytes.",
+                                  message_header,
+                                  len(message_payload))
 
     def file_received(self, data : bytes):
         """Callback function that is triggered when all the bytes specified by a message header that specifies file
@@ -95,8 +131,8 @@ class SparseTransportProtocol(asyncio.Protocol):
             data_bytes = f.read()
             file_size = len(data_bytes)
 
-            self.transport.write(struct.pack("!sQ", b"f", file_size))
-            self.transport.write(data_bytes)
+            self.logger.debug("Sending %s byte file to %s", file_size, str(self))
+            self.transport.write(SparseMessageHeader("f", file_size).to_bytes() + data_bytes)
 
     def send_payload(self, payload : dict):
         """Transmits a given object to the peer.
@@ -104,8 +140,8 @@ class SparseTransportProtocol(asyncio.Protocol):
         payload_data = pickle.dumps(payload)
         payload_size = len(payload_data)
 
-        self.transport.write(struct.pack("!sQ", b"o", payload_size))
-        self.transport.write(payload_data)
+        self.logger.debug("Sending %s byte message to %s", payload_size, str(self))
+        self.transport.write(SparseMessageHeader("o", payload_size).to_bytes() + payload_data)
 
 class MultiplexerProtocol(SparseTransportProtocol):
     """Multiplexes protocols into the same network connection. Provides the same external interface as each of the
