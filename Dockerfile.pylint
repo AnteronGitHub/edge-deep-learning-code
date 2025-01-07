@@ -1,4 +1,4 @@
-FROM anterondocker/sparse-framework:pytorch
+FROM anterondocker/sparse-framework:graphs
 
 COPY requirements_pylint.txt requirements_pylint.txt
 RUN pip install -r requirements_pylint.txt

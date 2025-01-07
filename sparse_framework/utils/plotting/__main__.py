@@ -1,6 +1,8 @@
+"""This module implements plotting functionality for visualizing sparse benchmark data.
+"""
+import os
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
 import seaborn as sns
 import numpy as np
 
@@ -9,10 +11,14 @@ from simple_term_menu import TerminalMenu
 pd.options.mode.chained_assignment = None
 
 class StatisticsFileLoader:
+    """Statistics file loader parses statistics data from files created by sparse statistics module.
+    """
     def __init__(self, stats_path = '/var/lib/sparse/stats'):
         self.stats_path = stats_path
 
     def select_from_options(self, options, title) -> str:
+        """Prompts use options and selects one from them.
+        """
         terminal_menu = TerminalMenu(options, title=title)
         menu_entry_index = terminal_menu.show()
         if menu_entry_index is None:
@@ -21,10 +27,15 @@ class StatisticsFileLoader:
         return options[menu_entry_index]
 
     def load_dataframe(self, dataframe_type = None):
+        """Loads a data frame from file selected by the user.
+        """
         if dataframe_type is None:
-            dataframe_type = plotter.file_loader.select_from_options(["ClientRequestStatisticsRecord", "ServerRequestStatisticsRecord"], "Data frame type:")
+            dataframe_type = self.select_from_options(["ClientRequestStatisticsRecord", \
+                                                       "ServerRequestStatisticsRecord"], \
+                                                      "Data frame type:")
 
-        data_files = [path for path in os.listdir(self.stats_path) if path.startswith(dataframe_type) and path.endswith(".csv")]
+        data_files = [path for path in os.listdir(self.stats_path) \
+                                    if path.startswith(dataframe_type) and path.endswith(".csv")]
         data_files.sort()
         filename = self.select_from_options(data_files, "Dataframe file name:")
 
@@ -35,9 +46,12 @@ class StatisticsFileLoader:
         try:
             return dataframe_type, pd.read_csv(filepath)
         except FileNotFoundError:
-            print(f"File '{filename}' was not found in directory '{STATS_PATH}'. Make sure that it exists and is readable.")
+            print(f"File '{filename}' was not found in directory '{self.stats_path}'.")
+            return None, None
 
     def parse_boxplot_frame(self):
+        """Parses boxplot data from file selected by the user.
+        """
         dataframe_type = "ClientRequestStatisticsRecord"
         _, df = self.load_dataframe(dataframe_type)
 
@@ -54,6 +68,8 @@ class StatisticsFileLoader:
         return df
 
     def parse_scales(self):
+        """Parse plot options from the user.
+        """
         title = input("Plot title: ")
         try:
             start_at = float(input("Start at timestamp: "))
@@ -75,11 +91,15 @@ class StatisticsFileLoader:
         return title, start_at, period_length, y_min, y_max
 
 class StatisticsGraphPlotter:
+    """Plots graphs from benchmark data.
+    """
     def __init__(self, write_path = '/var/lib/sparse/stats'):
         self.file_loader = StatisticsFileLoader()
         self.write_path = write_path
 
     def count_offload_task_client_statistics_legacy(self, df, start_at = 0.0, period_length = -1.0):
+        """Transforms statistics data to appropriate format for plotting.
+        """
         df = df.rename(columns={ 'processing_started':'request_sent_at',
                                  'latency': 'Latency (ms)',
                                  'node_id': 'connection_id',
@@ -126,6 +146,8 @@ class StatisticsGraphPlotter:
         return df.set_index("request_sent_at")
 
     def count_offload_task_server_statistics(self, df, start_at = 0.0, period_length = -1.0):
+        """Transforms server task statistics into appropriate format for plotting.
+        """
         df = df.loc[df['request_op']=='offload_task']
 
         df['e2e_latency'] = df['response_sent_at'] - df['request_received_at']
@@ -154,6 +176,8 @@ class StatisticsGraphPlotter:
         return df.set_index("request_received_at")
 
     def count_offload_task_server_batch_statistics(self, df, start_at = 0.0, period_length = -1.0):
+        """Transforms server batch statistics into appropriate format for plotting.
+        """
         df = df.loc[df['request_op']=='offload_task']
         df = df[df["task_started_at"] >= start_at]
 
@@ -179,25 +203,32 @@ class StatisticsGraphPlotter:
         result_df["Task started (s)"] = result_df["Task started (s)"].apply(lambda x: x-start_at)
         return result_df.set_index("Task started (s)")
 
-    def print_statistics(self, legacy = False):
-        dataframe_type, df = self.file_loader.load_dataframe()
+    def print_statistics(self):
+        """Prints statistics into output instead of plotting.
+        """
+        _, df = self.file_loader.load_dataframe()
         batch_stats = self.count_offload_task_server_batch_statistics(df)
         print(batch_stats)
-        return
 
-        if dataframe_type == "ClientRequestStatisticsRecord":
-            # Calculate statistics for offloaded tasks
-            if legacy:
-                stats = self.count_offload_task_client_statistics_legacy(df)
-            else:
-                stats = self.count_offload_task_client_statistics(df)
-            # Print statistics
-            print(stats[['Latency (ms)', 'Offload latency (ms)']].describe())
-        else:
-            stats = self.count_offload_task_server_statistics(df)
-            print(stats[['Service time (ms)', 'RX latency (ms)', 'Queueing time (ms)', 'Task latency (ms)', 'TX latency (ms)']].describe())
+        # if dataframe_type == "ClientRequestStatisticsRecord":
+        #     # Calculate statistics for offloaded tasks
+        #     if legacy:
+        #         stats = self.count_offload_task_client_statistics_legacy(df)
+        #     else:
+        #         stats = self.count_offload_task_client_statistics(df)
+        #     # Print statistics
+        #     print(stats[['Latency (ms)', 'Offload latency (ms)']].describe())
+        # else:
+        #     stats = self.count_offload_task_server_statistics(df)
+        #     print(stats[['Service time (ms)', \
+        #                  'RX latency (ms)', \
+        #                  'Queueing time (ms)', \
+        #                  'Task latency (ms)', \
+        #                  'TX latency (ms)']].describe())
 
     def plot_latency_timeline(self, latency = False):
+        """Creates a latency timeline plot.
+        """
         dataframe_type, df = self.file_loader.load_dataframe()
         title, start_at, period_length, y_min, y_max = self.file_loader.parse_scales()
 
@@ -216,7 +247,7 @@ class StatisticsGraphPlotter:
         ylabel = "Offload latency (ms)" if dataframe_type == "ClientRequestStatisticsRecord" else "Service time (ms)"
         xlabel = "Request sent (s)" if dataframe_type == "ClientRequestStatisticsRecord" else "Request received (s)"
         plt.rcParams.update({ 'font.size': 32 })
-        fig, ax = plt.subplots(figsize=(12,8))
+        _, ax = plt.subplots(figsize=(12,8))
         for label, data in stats.groupby("connection_id"):
             data.plot(y=ylabel, ax=ax, label=label, marker=marker)
 
@@ -238,7 +269,9 @@ class StatisticsGraphPlotter:
         print(f"Saved column plot to '{filepath}'")
 
     def plot_benchmark_barplot(self):
-        title, start_at, period_length, y_min, y_max = self.file_loader.parse_scales()
+        """Creates a server-side latency barplot.
+        """
+        title, _, _, _, y_max = self.file_loader.parse_scales()
 
         plt.figure(figsize=(16,8))
 
@@ -277,12 +310,14 @@ class StatisticsGraphPlotter:
         print(f"Saved benchmark barplot to '{filepath}'")
 
     def plot_offload_latency_boxplot(self):
+        """Creates a client-side latency boxplot.
+        """
         plt.rcParams.update({ 'font.size': 24 })
         plt.figure(figsize=(12,8))
 
         dataframe_type = "ClientRequestStatisticsRecord"
         frames = []
-        title, start_at, period_length, y_min, y_max = self.file_loader.parse_scales()
+        _, start_at, period_length, y_min, y_max = self.file_loader.parse_scales()
         while True:
             df = self.file_loader.parse_boxplot_frame()
             if df is None:
@@ -306,7 +341,9 @@ class StatisticsGraphPlotter:
         print(f"Saved offload latency boxplot to '{filepath}'")
 
     def plot_batch_distribution(self):
-        title, start_at, period_length, y_min, y_max = self.file_loader.parse_scales()
+        """Creates a server-side batch size distribution plot.
+        """
+        title, start_at, period_length, _, _ = self.file_loader.parse_scales()
 
         dataframe_type = "ServerRequestStatisticsRecord"
         _, df = self.file_loader.load_dataframe(dataframe_type)
@@ -331,7 +368,9 @@ class StatisticsGraphPlotter:
         print(f"Saved batch size histogram to '{filepath}'")
 
     def plot_batch_latency_boxplot(self):
-        title, start_at, period_length, y_min, y_max = self.file_loader.parse_scales()
+        """Creates a server-side batch latency box plot.
+        """
+        title, start_at, period_length, _, _ = self.file_loader.parse_scales()
 
         dataframe_type = "ServerRequestStatisticsRecord"
         frames = []
@@ -351,10 +390,10 @@ class StatisticsGraphPlotter:
 
         plt.rcParams.update({ 'font.size': 24 })
         plt.figure(figsize=(12,8))
-        ax = sns.boxplot(x="Batch Size",
-                         y="Task latency (ms)",
-                         data=stats,
-                         showfliers=False)
+        sns.boxplot(x="Batch Size", \
+                    y="Task latency (ms)", \
+                    data=stats, \
+                    showfliers=False)
 
         plt.title(title)
         plt.xticks(np.arange(max_batch_size, step=10))
@@ -366,12 +405,18 @@ class StatisticsGraphPlotter:
 
 if __name__ == "__main__":
     plotter = StatisticsGraphPlotter()
-    operation = plotter.file_loader.select_from_options(["Print DataFrame", "Plot timeline", "Plot barplot", "Plot boxplot", "Plot batch size distribution", "Plot batch latency variance"], "Select operation:")
-    legacy = bool(input("Legacy format y/N: "))
+    operation = plotter.file_loader.select_from_options(["Print DataFrame", \
+                                                         "Plot timeline", \
+                                                         "Plot barplot", \
+                                                         "Plot boxplot", \
+                                                         "Plot batch size distribution", \
+                                                         "Plot batch latency variance"], \
+                                                        "Select operation:")
+    use_legacy = bool(input("Legacy format y/N: "))
     if operation == "Print DataFrame":
-        plotter.print_statistics(legacy)
+        plotter.print_statistics()
     elif operation == "Plot timeline":
-        plotter.plot_latency_timeline(legacy)
+        plotter.plot_latency_timeline(use_legacy)
     elif operation == "Plot barplot":
         plotter.plot_benchmark_barplot()
     elif operation == "Plot boxplot":
