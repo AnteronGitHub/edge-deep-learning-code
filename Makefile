@@ -67,7 +67,7 @@ run-experiment:
 clean-experiment:
 	scripts/clean-experiment.sh
 
-graphs: $(docker_build_file)
+graphs:
 	docker run --rm -v $(sparse_stats_dir):$(sparse_stats_dir) \
 		              -v $(abspath .):/app \
 									-it $(docker_image):$(docker_tag_graphs)
