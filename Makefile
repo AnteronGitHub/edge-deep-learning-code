@@ -14,7 +14,6 @@ docker_tag_pylint        := pylint
 dockerfile_graphs        := Dockerfile.graphs
 dockerfile_pylint        := Dockerfile.pylint
 docker_build_file_graphs := .DOCKER_GRAPHS
-src_graphs               := make_graphs.py
 py_requirements_graphs   := requirements_graphs.txt
 py_requirements_pylint   := requirements_pylint.txt
 
@@ -70,5 +69,5 @@ clean-experiment:
 
 graphs: $(docker_build_file)
 	docker run --rm -v $(sparse_stats_dir):$(sparse_stats_dir) \
-		              -v $(abspath $(src_graphs)):/app/$(src_graphs) \
+		              -v $(abspath .):/app \
 									-it $(docker_image):$(docker_tag_graphs)
