@@ -57,11 +57,17 @@ class DataFormatter:
         len(pd.unique(df["source_stream_id"]))
         return df.assign(no_sources=len(pd.unique(df["source_stream_id"])), scheduling="pause-frames")
 
-    def group_by_batch_size(self, df):
+    def count_batch_sizes(self, df):
         """Groups dataframe by the number of distinct source streams.
         """
-        # TODO: add batch number to runtime statistics records.
-        return df.assign(batch_size=20)
+        batch_sizes = {}
+        for batch_no in pd.unique(df["batch_no"]):
+            batch_size = df[df.batch_no == batch_no].shape[0]
+            batch_sizes[batch_no] = batch_size
+
+        df["batch_no"] = df["batch_no"].apply(lambda x: batch_sizes[x])
+
+        return df.rename(columns={ 'batch_no':'batch_size' })
 
     def count_offload_task_server_statistics(self, df, start_at = 0.0, period_length = -1.0):
         """Transforms server task statistics into appropriate format for plotting.

@@ -38,6 +38,7 @@ class PrintDataCommand(UICommand):
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
         df = self.data_formatter.to_runtime_latency(df)
+        df = self.data_formatter.count_batch_sizes(df)
         self.logger.info("\n%s", str(df))
 
 class PlotLatencyTimelineCommand(UICommand):
@@ -91,7 +92,7 @@ class PlotBatchSizeHistogramCommand(UICommand):
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
         df = self.data_formatter.to_runtime_latency(df)
-        df = self.data_formatter.group_by_batch_size(df)
+        df = self.data_formatter.count_batch_sizes(df)
         BatchSizeHistogramPlotter().plot(df)
         self.logger.info("Plotted batch size distribution.")
 
@@ -105,6 +106,6 @@ class PlotBatchLatencyCommand(UICommand):
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
         df = self.data_formatter.to_runtime_latency(df)
-        df = self.data_formatter.group_by_batch_size(df)
+        df = self.data_formatter.count_batch_sizes(df)
         BatchLatencyPlotter().plot(df)
         self.logger.info("Plotted batch latency.")

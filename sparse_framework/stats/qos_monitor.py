@@ -52,11 +52,11 @@ class QoSMonitor(SparseSlice):
 
         return futures
 
-    def operator_input_buffered(self, operator : StreamOperator, source, sequence_no):
+    def operator_input_buffered(self, operator : StreamOperator, source, sequence_no, batch_no):
         """Called when an input for a given operator from a source stream is buffered.
         """
         record = self.statistics_service.get_operator_runtime_statistics_record(operator, source, sequence_no)
-        record.input_buffered()
+        record.input_buffered(batch_no)
 
     def operator_input_dispatched(self, operator : StreamOperator, source, sequence_no):
         """Called when an input for a given operator from a source stream is dispatched from buffer.
