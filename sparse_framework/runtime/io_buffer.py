@@ -22,6 +22,8 @@ class SparseIOBuffer:
         m = multiprocessing.Manager()
         self.lock = m.Lock()
         self.input_buffer = []
+        self.batches_dispatched = 0
+        # TODO: batch count should increase on each tuple when batching is not used
 
     def buffer_input(self, input_data, source_stream, sequence_no, result_callback) -> int:
         """Appends an input tensor to the specified model's input buffer and returns its index.
@@ -32,9 +34,10 @@ class SparseIOBuffer:
                                       source_stream,
                                       sequence_no,
                                       result_callback))
+            batch_no = self.batches_dispatched
 
         if self.qos_monitor is not None:
-            self.qos_monitor.operator_input_buffered(self.operator, source_stream, sequence_no)
+            self.qos_monitor.operator_input_buffered(self.operator, source_stream, sequence_no, batch_no)
         self.logger.debug("%d samples buffered.", index+1)
         return index
 
@@ -56,6 +59,7 @@ class SparseIOBuffer:
         with self.lock:
             task_data_batch = self.input_buffer
             self.input_buffer = []
+            self.batches_dispatched += 1
 
         input_batch = []
         callbacks = []

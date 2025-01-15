@@ -1,9 +1,9 @@
-FROM python:3.12-slim
+FROM anterondocker/sparse-framework:pytorch
 
 COPY requirements_graphs.txt requirements_graphs.txt
 RUN pip install -r requirements_graphs.txt
 
 WORKDIR /app
-COPY make_graphs.py make_graphs.py
+COPY sparse_framework sparse_framework
 
-CMD ["python", "make_graphs.py"]
+CMD ["python", "-m", "sparse_framework.utils.plotting"]
