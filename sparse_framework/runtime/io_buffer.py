@@ -23,6 +23,7 @@ class SparseIOBuffer:
         self.lock = m.Lock()
         self.input_buffer = []
         self.batches_dispatched = 0
+        # TODO: batch count should increase on each tuple when batching is not used
 
     def buffer_input(self, input_data, source_stream, sequence_no, result_callback) -> int:
         """Appends an input tensor to the specified model's input buffer and returns its index.

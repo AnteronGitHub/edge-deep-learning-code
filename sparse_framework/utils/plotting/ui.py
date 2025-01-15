@@ -55,11 +55,7 @@ class PlotterUserInterface:
     def start(self):
         """Starts the user interface.
         """
-        command_options = []
-        for cmd in self.commands:
-            command_options.append(str(cmd))
-
-        operation = self.select_from_options(command_options, "Select operation:")
+        operation = self.select_from_options([str(cmd) for cmd in self.commands], "Select operation:")
 
         for cmd in self.commands:
             if str(cmd) == operation:

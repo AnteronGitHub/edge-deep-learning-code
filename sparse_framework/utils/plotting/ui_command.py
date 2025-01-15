@@ -4,7 +4,8 @@ import logging
 
 from .statistics_file_loader import StatisticsFileLoader
 from .data_formatter import DataFormatter
-from .plotter import LatencyTimelinePlotter, \
+from .plotter import PlottingOptions, \
+                     LatencyTimelinePlotter, \
                      LatencyBarplotPlotter, \
                      LatencyBoxplotPlotter, \
                      BatchSizeHistogramPlotter, \
@@ -48,11 +49,22 @@ class PlotLatencyTimelineCommand(UICommand):
         return "Plot timeline"
 
     def run(self):
+        # Load data frame
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
+
+        # Filter frame records
+        operator_names = self.data_formatter.get_available_operator_names(df)
+        operator_name = self.ui.select_from_options(operator_names, "Operator:")
+        df = self.data_formatter.filter_by_operator_name(df, operator_name)
+
+        # Transform frame for the plotter
         df = self.data_formatter.to_runtime_latency(df)
-        LatencyTimelinePlotter().plot(df)
-        self.logger.info("Plotted latency barplot.")
+
+        # Plot the data frame
+        options = PlottingOptions(operator_name=operator_name)
+        LatencyTimelinePlotter().plot(df, options)
+        self.logger.info("Plotted latency timeline for operator %s.", operator_name)
 
 class PlotLatencyBarplotCommand(UICommand):
     """Command to plot latency barplot.
@@ -61,12 +73,23 @@ class PlotLatencyBarplotCommand(UICommand):
         return "Plot latency barplot"
 
     def run(self):
+        # Load data frame
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
+
+        # Filter frame records
+        operator_names = self.data_formatter.get_available_operator_names(df)
+        operator_name = self.ui.select_from_options(operator_names, "Operator:")
+        df = self.data_formatter.filter_by_operator_name(df, operator_name)
+
+        # Transform frame for the plotter
         df = self.data_formatter.to_runtime_latency(df)
         df = self.data_formatter.group_by_no_sources(df)
-        LatencyBarplotPlotter().plot(df)
-        self.logger.info("Plotted latency barplot.")
+
+        # Plot the data frame
+        options = PlottingOptions(operator_name=operator_name)
+        LatencyBarplotPlotter().plot(df, options)
+        self.logger.info("Plotted latency barplot for operator %s.", operator_name)
 
 class PlotLatencyBoxplotCommand(UICommand):
     """Command to plot latency boxplot.
@@ -75,26 +98,48 @@ class PlotLatencyBoxplotCommand(UICommand):
         return "Plot latency boxplot"
 
     def run(self):
+        # Load data frame
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
+
+        # Filter frame records
+        operator_names = self.data_formatter.get_available_operator_names(df)
+        operator_name = self.ui.select_from_options(operator_names, "Operator:")
+        df = self.data_formatter.filter_by_operator_name(df, operator_name)
+
+        # Transform frame for the plotter
         df = self.data_formatter.to_runtime_latency(df)
         df = self.data_formatter.group_by_no_sources(df)
-        LatencyBoxplotPlotter().plot(df)
-        self.logger.info("Plotted latency boxplot.")
+
+        # Plot the data frame
+        options = PlottingOptions(operator_name=operator_name)
+        LatencyBoxplotPlotter().plot(df, options)
+        self.logger.info("Plotted latency boxplot for operator %s.", operator_name)
 
 class PlotBatchSizeHistogramCommand(UICommand):
     """Command to plot batch size distribution.
     """
     def __str__(self):
-        return "Plot batch size distribution"
+        return "Plot batch size histogram"
 
     def run(self):
+        # Load data frame
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
+
+        # Filter frame records
+        operator_names = self.data_formatter.get_available_operator_names(df)
+        operator_name = self.ui.select_from_options(operator_names, "Operator:")
+        df = self.data_formatter.filter_by_operator_name(df, operator_name)
+
+        # Transform frame for the plotter
         df = self.data_formatter.to_runtime_latency(df)
         df = self.data_formatter.count_batch_sizes(df)
-        BatchSizeHistogramPlotter().plot(df)
-        self.logger.info("Plotted batch size distribution.")
+
+        # Plot the data frame
+        options = PlottingOptions(operator_name=operator_name)
+        BatchSizeHistogramPlotter().plot(df, options)
+        self.logger.info("Plotted batch size distribution for operator %s.", operator_name)
 
 class PlotBatchLatencyCommand(UICommand):
     """Command to plot batch processing latency.
@@ -103,9 +148,20 @@ class PlotBatchLatencyCommand(UICommand):
         return "Plot batch latency variance"
 
     def run(self):
+        # Load data frame
         filepath = self.ui.select_data_file()
         df = self.file_loader.load_dataframe(filepath)
+
+        # Filter frame records
+        operator_names = self.data_formatter.get_available_operator_names(df)
+        operator_name = self.ui.select_from_options(operator_names, "Operator:")
+        df = self.data_formatter.filter_by_operator_name(df, operator_name)
+
+        # Transform frame for the plotter
         df = self.data_formatter.to_runtime_latency(df)
         df = self.data_formatter.count_batch_sizes(df)
-        BatchLatencyPlotter().plot(df)
-        self.logger.info("Plotted batch latency.")
+
+        # Plot the data frame
+        options = PlottingOptions(operator_name=operator_name)
+        BatchLatencyPlotter().plot(df, options)
+        self.logger.info("Plotted batch size latency boxplots for operator %s.", operator_name)

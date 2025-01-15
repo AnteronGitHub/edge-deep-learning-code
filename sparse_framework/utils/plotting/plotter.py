@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from pandas.core.frame import DataFrame
+
 pd.options.mode.chained_assignment = None
 
 @dataclasses.dataclass
@@ -17,8 +19,7 @@ class PlottingOptions:
     operator_name : str
     use_markers : bool
 
-    def __init__(self, operator_name : str = "VGGClassifier", use_markers : bool = False):
-        # TODO: Specify operator name instead of using a default value
+    def __init__(self, operator_name : str, use_markers : bool = False):
         self.operator_name = operator_name
         self.use_markers = use_markers
 
@@ -34,7 +35,7 @@ class StatisticsGraphPlotter:
         """
         return "statistics_plot.png"
 
-    def plot(self, df, options : PlottingOptions = PlottingOptions()):
+    def plot(self, df : DataFrame, options : PlottingOptions):
         """Creates the plot in the specified write path.
         """
 
@@ -45,9 +46,7 @@ class LatencyTimelinePlotter(StatisticsGraphPlotter):
     def file_name(self):
         return "latency_timeline.png"
 
-    def plot(self, df, options : PlottingOptions = PlottingOptions()):
-        df = df.loc[df['operator_name']==options.operator_name]
-
+    def plot(self, df : DataFrame, options : PlottingOptions):
         marker = 'o' if options.use_markers else ''
 
         ylabel = "processing_latency"
@@ -76,9 +75,7 @@ class LatencyBarplotPlotter(StatisticsGraphPlotter):
     def file_name(self):
         return "latency_barplot.png"
 
-    def plot(self, df, options : PlottingOptions = PlottingOptions()):
-        df = df.loc[df['operator_name']==options.operator_name]
-
+    def plot(self, df : DataFrame, options : PlottingOptions):
         plt.figure(figsize=(16,8))
 
         plt.rcParams.update({ 'font.size': 18 })
@@ -110,8 +107,7 @@ class LatencyBoxplotPlotter(StatisticsGraphPlotter):
     def file_name(self):
         return "latency_boxplot.png"
 
-    def plot(self, df, options : PlottingOptions = PlottingOptions()):
-        df = df.loc[df['operator_name']==options.operator_name]
+    def plot(self, df : DataFrame, options : PlottingOptions):
         plt.rcParams.update({ 'font.size': 24 })
         plt.figure(figsize=(12,8))
 
@@ -124,6 +120,9 @@ class LatencyBoxplotPlotter(StatisticsGraphPlotter):
                     showfliers=False)
 
         filepath = os.path.join(self.write_path, self.file_name)
+        plt.title(options.operator_name)
+        plt.ylabel("Processing Latency (ms)")
+        plt.xlabel("Streams")
         plt.tight_layout()
         plt.savefig(filepath, dpi=400)
 
@@ -134,8 +133,7 @@ class BatchSizeHistogramPlotter(StatisticsGraphPlotter):
     def file_name(self):
         return "batch_size_histogram.png"
 
-    def plot(self, df, options : PlottingOptions = PlottingOptions()):
-        df = df.loc[df['operator_name']==options.operator_name]
+    def plot(self, df : DataFrame, options : PlottingOptions):
         max_batch_size = df["batch_size"].max()
 
         plt.rcParams.update({ 'font.size': 24 })
@@ -144,7 +142,7 @@ class BatchSizeHistogramPlotter(StatisticsGraphPlotter):
         df.hist(column="batch_size", legend=False, bins=max_batch_size)
 
         plt.grid(None)
-        plt.xlabel("batch_size")
+        plt.xlabel("Batch Size")
         plt.title(options.operator_name)
         plt.xlim([0, max_batch_size + 1])
         plt.tick_params(left = False, labelleft = False)
@@ -160,9 +158,7 @@ class BatchLatencyPlotter(StatisticsGraphPlotter):
     def file_name(self):
         return "batch_size_latency_boxplot.png"
 
-    def plot(self, df, options : PlottingOptions = PlottingOptions()):
-        df = df.loc[df['operator_name']==options.operator_name]
-
+    def plot(self, df : DataFrame, options : PlottingOptions):
         plt.rcParams.update({ 'font.size': 24 })
         plt.figure(figsize=(24,8))
 
@@ -176,6 +172,8 @@ class BatchLatencyPlotter(StatisticsGraphPlotter):
                     showfliers=False)
 
         plt.title(options.operator_name)
+        plt.xlabel("Batch Size")
+        plt.ylabel("Processing latency (ms)")
         plt.xticks(np.arange(max_batch_size, step=10))
         plt.tight_layout()
 
